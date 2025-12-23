@@ -29,8 +29,28 @@ food_database = {
     # Vegetables: 0 kcal base (assuming plain)
     "Green Leafy Veg (1 cup)": {"Cals": 0, "Prot": 0, "Carbs": 0},
     
-    # Milk: 120 kcal, 7g Protein, 12g CHO (approx for low fat)
-    "Low Fat Milk (1 glass)": {"Cals": 120, "Prot": 7, "Carbs": 12}
+    # Milk: 120 kcal, 7g Protein, 12g CHO 
+    "Milk (1 glass)": {"Cals": 120, "Prot": 7, "Carbs": 12}
+
+    # --- LOCAL FAVORITES (MEALS) ---
+    "Nasi Lemak (1 plate - Standard)": {"Cals": 400, "Prot": 12, "Carbs": 45},
+    "Chicken Rice (Roasted - 1 plate)": {"Cals": 600, "Prot": 25, "Carbs": 60},
+    "Mee Goreng / Fried Mee (1 plate)": {"Cals": 500, "Prot": 15, "Carbs": 60},
+    "Noodle Soup / Mee Soup (1 bowl)": {"Cals": 350, "Prot": 15, "Carbs": 45},
+    "Curry Mee (1 bowl)": {"Cals": 550, "Prot": 18, "Carbs": 50},
+    "Char Kuey Teow (1 plate)": {"Cals": 740, "Prot": 15, "Carbs": 70},
+    "Roti Canai (1 piece + dhal)": {"Cals": 300, "Prot": 6, "Carbs": 35},
+    "Tosai (1 piece)": {"Cals": 200, "Prot": 4, "Carbs": 35},
+    "Sandwich (Egg Mayo - 2 slices)": {"Cals": 300, "Prot": 10, "Carbs": 30},
+    "Satay (Chicken - 5 sticks)": {"Cals": 185, "Prot": 15, "Carbs": 5},
+
+    # --- LOCAL DRINKS ---
+    "Teh Tarik (1 glass)": {"Cals": 180, "Prot": 4, "Carbs": 25},
+    "Kopi O (Black with Sugar)": {"Cals": 60, "Prot": 0, "Carbs": 15},
+    "Kopi Susu (Coffee with Milk)": {"Cals": 140, "Prot": 3, "Carbs": 20},
+    "Milo (1 cup)": {"Cals": 150, "Prot": 3, "Carbs": 25},
+    "Syrup Bandung (1 glass)": {"Cals": 150, "Prot": 2, "Carbs": 25},
+    "Plain Water": {"Cals": 0, "Prot": 0, "Carbs": 0}
 }
 
 # --- PART 2: THE APP LOGIC ---
