@@ -1,81 +1,74 @@
 import streamlit as st
 import pandas as pd
 
-# --- PART 1: THE BRAIN (DATA) ---
-# This dictionary contains the exchange values derived from your image.
-# Structure: "Food Name": Calorie Value
+# --- PART 1: THE DATA (Brain) ---
+# Now includes Calories, Protein (g), and Carbs (g) per unit
 food_database = {
-    # Carbohydrates (Base: 75 kcal)
-    "Rice (1/2 cup)": 75,
-    "Whole Meal Bread (1 slice)": 75,
-    "Cream Crackers (3 pieces)": 75,
-    "Oats (3 tablespoons)": 75,
-    "Rice Porridge (1 cup)": 75,
-    "Mee / Noodle (1/3 cup)": 75,
-    "Meehoon / Kway Teow (1/2 cup)": 75,
-    "Potato / Sweet Potato (1/2 cup)": 75,
-    "Chapati (1/3 piece)": 75,
-    "Tosei (1/2 piece)": 75,
+    # Carbohydrates: Base 75 kcal, 2g Protein, 15g CHO
+    "Rice (1/2 cup)": {"Cals": 75, "Prot": 2, "Carbs": 15},
+    "Whole Meal Bread (1 slice)": {"Cals": 75, "Prot": 2, "Carbs": 15},
+    "Oats (3 tablespoons)": {"Cals": 75, "Prot": 2, "Carbs": 15},
+    "Mee / Noodle (1/3 cup)": {"Cals": 75, "Prot": 2, "Carbs": 15},
+    "Potato (1/2 cup)": {"Cals": 75, "Prot": 2, "Carbs": 15},
+    "Cream Crackers (3 pieces)": {"Cals": 75, "Prot": 2, "Carbs": 15},
 
-    # Proteins (Base: 65 kcal)
-    "Chicken Drumstick (1/2 piece, lean)": 65,
-    "Fish (1/2 medium, Selar/Kembong)": 65,
-    "Prawns (6 medium)": 65,
-    "Egg (1 whole)": 65,
-    "Taukua (1/2 piece)": 65,
-    "Tempeh (1 piece)": 65,
-    "Lean Meat (1 matchbox size)": 65,
+    # Proteins: Base 65 kcal, 7g Protein, 0g CHO
+    "Chicken Drumstick (1/2 piece)": {"Cals": 65, "Prot": 7, "Carbs": 0},
+    "Egg (1 whole)": {"Cals": 65, "Prot": 7, "Carbs": 0},
+    "Fish (1/2 medium)": {"Cals": 65, "Prot": 7, "Carbs": 0},
+    "Taukua (1/2 piece)": {"Cals": 65, "Prot": 7, "Carbs": 0},
 
-    # Fruits (Base: 60 kcal)
-    "Apple / Orange / Pear (1 medium)": 60,
-    "Banana (1 small)": 60,
-    "Papaya / Pineapple / Watermelon (1 slice)": 60,
-    "Durian (2 medium seeds)": 60,
-    "Guava (1/2 fruit)": 60,
+    # Fruits: Base 60 kcal, 0g Protein, 15g CHO
+    "Apple (1 medium)": {"Cals": 60, "Prot": 0, "Carbs": 15},
+    "Banana (1 small)": {"Cals": 60, "Prot": 0, "Carbs": 15},
+    "Papaya (1 slice)": {"Cals": 60, "Prot": 0, "Carbs": 15},
 
-    # Vegetables (Base: 0 kcal, unless oil added)
-    "Green Leafy Veg (1 cup)": 0,
-    "Stir-Fried Veg (1 cup + 1 tsp oil)": 45, 
+    # Fats: 45 kcal, 0g Protein, 0g CHO
+    "Cooking Oil (1 tsp)": {"Cals": 45, "Prot": 0, "Carbs": 0},
 
-    # Fats & Sugars
-    "Cooking Oil (1 tsp)": 45,
-    "Margarine (1 tsp)": 45,
-    "Sugar (1 tsp)": 20,
-    "Low Fat Milk (1 glass)": 120
+    # Vegetables: 0 kcal base (assuming plain)
+    "Green Leafy Veg (1 cup)": {"Cals": 0, "Prot": 0, "Carbs": 0},
+    
+    # Milk: 120 kcal, 7g Protein, 12g CHO (approx for low fat)
+    "Low Fat Milk (1 glass)": {"Cals": 120, "Prot": 7, "Carbs": 12}
 }
 
 # --- PART 2: THE APP LOGIC ---
 
 st.title("🥗 My Diet Exchange Calculator")
-st.write("Calculate your daily calories using the Malaysian Food Exchange system.")
+st.write("Calculate calories, protein, and carbs using the Malaysian Food Exchange system.")
 
-# Initialize the "Session State" to remember what foods we added
+# Initialize the "Session State" to remember our list
+# This is the "Notebook" that keeps data safe!
 if 'food_log' not in st.session_state:
     st.session_state.food_log = []
 
 # --- SECTION: ADD FOOD ---
 st.subheader("Add Food to Meal")
-
 col1, col2 = st.columns(2)
 
 with col1:
-    # Dropdown menu populated by our database keys
     food_choice = st.selectbox("Select Food Item", list(food_database.keys()))
 
 with col2:
-    # Number input for quantity
     quantity = st.number_input("Quantity", min_value=0.5, value=1.0, step=0.5)
 
 if st.button("Add to List"):
-    # Calculate calories for this item
-    calories_per_unit = food_database[food_choice]
-    total_cal = calories_per_unit * quantity
+    # Lookup the data
+    item_data = food_database[food_choice]
     
-    # Save to our list
+    # Calculate totals
+    total_cal = item_data["Cals"] * quantity
+    total_prot = item_data["Prot"] * quantity
+    total_carbs = item_data["Carbs"] * quantity
+    
+    # Add to the "Notebook"
     st.session_state.food_log.append({
         "Food": food_choice,
         "Qty": quantity,
-        "Calories": total_cal
+        "Calories": total_cal,
+        "Protein (g)": total_prot,
+        "Carbs (g)": total_carbs
     })
     st.success(f"Added {quantity} x {food_choice}")
 
@@ -84,17 +77,24 @@ st.divider()
 st.subheader("📝 Your Meal Log")
 
 if st.session_state.food_log:
-    # Convert list to a nice table
+    # Show the table
     df = pd.DataFrame(st.session_state.food_log)
     st.table(df)
 
-    # Calculate Grand Total
-    grand_total = df['Calories'].sum()
-    st.metric(label="Total Calories", value=f"{grand_total} kcal")
+    # Calculate Grand Totals
+    grand_cals = df['Calories'].sum()
+    grand_prot = df['Protein (g)'].sum()
+    grand_carbs = df['Carbs (g)'].sum()
     
-    # Button to clear the list
+    # Display Metrics in 3 nice columns
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Total Calories", f"{grand_cals} kcal")
+    c2.metric("Total Protein", f"{grand_prot} g")
+    c3.metric("Total Carbs", f"{grand_carbs} g")
+    
+    # Clear Button
     if st.button("Clear List"):
         st.session_state.food_log = []
         st.rerun()
 else:
-    st.info("No food added yet. Select an item above!")
+    st.info("No food added yet. Start building your meal above!")
