@@ -73,7 +73,11 @@ food_database = {
 
 # --- PART 2: THE APP LOGIC ---
 
-st.title("🥗 My Diet Exchange Calculator")
+# Brand Header
+st.header("🌸 May Bloom Wellness")
+
+# Main Title
+st.title("🥗 Malaysian Diet Exchange Calculator")
 st.write("Calculate calories and macros (Protein, Carbs, Fat) using the Malaysian Food Exchange system.")
 
 # Initialize the "Session State" to remember our list
