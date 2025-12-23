@@ -74,10 +74,9 @@ food_database = {
 # --- PART 2: THE APP LOGIC ---
 
 st.title("🥗 My Diet Exchange Calculator")
-st.write("Calculate calories, protein, and carbs using the Malaysian Food Exchange system.")
+st.write("Calculate calories and macros (Protein, Carbs, Fat) using the Malaysian Food Exchange system.")
 
 # Initialize the "Session State" to remember our list
-# This is the "Notebook" that keeps data safe!
 if 'food_log' not in st.session_state:
     st.session_state.food_log = []
 
@@ -99,6 +98,7 @@ if st.button("Add to List"):
     total_cal = item_data["Cals"] * quantity
     total_prot = item_data["Prot"] * quantity
     total_carbs = item_data["Carbs"] * quantity
+    total_fat = item_data["Fat"] * quantity
     
     # Add to the "Notebook"
     st.session_state.food_log.append({
@@ -106,7 +106,8 @@ if st.button("Add to List"):
         "Qty": quantity,
         "Calories": total_cal,
         "Protein (g)": total_prot,
-        "Carbs (g)": total_carbs
+        "Carbs (g)": total_carbs,
+        "Fat (g)": total_fat
     })
     st.success(f"Added {quantity} x {food_choice}")
 
@@ -123,12 +124,14 @@ if st.session_state.food_log:
     grand_cals = df['Calories'].sum()
     grand_prot = df['Protein (g)'].sum()
     grand_carbs = df['Carbs (g)'].sum()
+    grand_fat = df['Fat (g)'].sum()
     
-    # Display Metrics in 3 nice columns
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Total Calories", f"{grand_cals} kcal")
-    c2.metric("Total Protein", f"{grand_prot} g")
-    c3.metric("Total Carbs", f"{grand_carbs} g")
+    # Display Metrics in 4 columns
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Calories", f"{grand_cals} kcal")
+    c2.metric("Protein", f"{grand_prot} g")
+    c3.metric("Carbs", f"{grand_carbs} g")
+    c4.metric("Fat", f"{grand_fat} g")
     
     # Clear Button
     if st.button("Clear List"):
