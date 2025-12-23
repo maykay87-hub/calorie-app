@@ -30,7 +30,7 @@ food_database = {
     "Green Leafy Veg (1 cup)": {"Cals": 0, "Prot": 0, "Carbs": 0},
     
     # Milk: 120 kcal, 7g Protein, 12g CHO 
-    "Milk (1 glass)": {"Cals": 120, "Prot": 7, "Carbs": 12}
+    "Milk (1 glass)": {"Cals": 120, "Prot": 7, "Carbs": 12},
 
     # --- LOCAL FAVORITES (MEALS) ---
     "Nasi Lemak (1 plate - Standard)": {"Cals": 400, "Prot": 12, "Carbs": 45},
