@@ -93,22 +93,62 @@ st.header("🌸 May Bloom Wellness")
 st.title("Malaysian Diet Exchange Calculator")
 st.write("Calculate calories and macros for your daily meals.")
 
-# --- SECTION: BMR CALCULATOR ---
-with st.expander("🔥 Calculate Daily Energy Needs"):
-    weight = st.number_input("Your Weight (kg)", min_value=10.0, value=70.0, step=0.5)
-    activity_level = st.radio(
-        "How active are you?",
-        ["Sedentary (Little to no exercise)", "Active (Exercise > 150 mins/week)"]
-    )
-    if activity_level == "Sedentary (Little to no exercise)":
-        daily_needs = weight * 25
-    else:
-        daily_needs = weight * 30
-    st.info(f"Estimated Daily Requirement: **{int(daily_needs)} kcal**")
+# --- SECTION: ADVANCED BMI & ENERGY CALCULATOR ---
+st.divider()
+st.header("1️⃣ Body Metrics & Energy Needs")
 
-# Initialize Session State
-if 'food_log' not in st.session_state:
-    st.session_state.food_log = []
+col1, col2 = st.columns(2)
+with col1:
+    height_cm = st.number_input("Height (cm)", min_value=100.0, value=160.0)
+with col2:
+    actual_weight = st.number_input("Current Weight (kg)", min_value=30.0, value=70.0)
+
+# 1. Calculate BMI
+height_m = height_cm / 100
+bmi = actual_weight / (height_m ** 2)
+
+# 2. Determine Status (Asian Pacific Cutoffs)
+if bmi < 18.5:
+    status = "Underweight"
+    color = "blue"
+elif 18.5 <= bmi < 23:
+    status = "Normal Weight"
+    color = "green"
+elif 23 <= bmi < 25:
+    status = "Overweight (At Risk)"
+    color = "orange"
+else:
+    status = "Obese"
+    color = "red"
+
+st.write(f"**BMI:** {bmi:.1f} (`{status}`)")
+
+# 3. Determine Weight for Calculation (Actual vs Adjusted)
+if bmi >= 25:
+    # Logic: If Obese, use Adjusted Body Weight
+    ideal_weight = 22 * (height_m ** 2) # Using BMI 22 as ideal target
+    adjusted_weight = ideal_weight + 0.25 * (actual_weight - ideal_weight)
+    
+    calc_weight = adjusted_weight
+    st.warning(f"⚠️ Since BMI indicates Obesity, we use **Adjusted Body Weight ({adjusted_weight:.1f} kg)** for calorie accuracy.")
+else:
+    # Logic: Normal/Overweight use Actual Weight
+    calc_weight = actual_weight
+    st.success(f"✅ Using **Actual Weight ({actual_weight:.1f} kg)** for calculation.")
+
+# 4. Calculate Energy Requirements
+activity_level = st.radio(
+    "Activity Level",
+    ["Sedentary (x25)", "Active (x30)"],
+    horizontal=True
+)
+
+if "Sedentary" in activity_level:
+    daily_needs = calc_weight * 25
+else:
+    daily_needs = calc_weight * 30
+
+st.info(f"🔥 Recommended Daily Energy Intake: **{int(daily_needs)} kcal**")
 
 # --- SECTION: ADD FOOD ---
 st.divider()
