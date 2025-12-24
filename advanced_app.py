@@ -122,10 +122,6 @@ exercise_database = {
 
 # --- PART 2: THE APP LOGIC ---
 
-# Brand Header
-st.header("🌸 May Bloom Wellness")
-st.title("Malaysian Diet Exchange Calculator")
-st.write("Calculate calories and macros for your daily meals.")
 
 # --- INITIALIZE SESSION STATE (IMPORTANT!) ---
 if 'food_log' not in st.session_state:
@@ -133,7 +129,7 @@ if 'food_log' not in st.session_state:
     
 # --- SECTION: ADVANCED BMI & ENERGY CALCULATOR ---
 st.divider()
-st.header("⚖️ Body Metrics & Energy Needs")
+st.header("📏 Body Metrics & Energy Needs")
 
 col1, col2 = st.columns(2)
 with col1:
