@@ -2,11 +2,24 @@ import streamlit as st
 import pandas as pd
 
 # --- APP CONFIGURATION ---
-st.set_page_config(page_title="May Bloom Advanced", page_icon="🌸", layout="centered")
+st.set_page_config(page_title="May Bloom Advanced", page_icon="🌸", layout="wide")
 
-st.header("🌸 May Bloom Wellness")
-st.title("Advanced Lifestyle Tracker")
-st.write("Complete tracking: Food, Activity, and Net Energy Balance.")
+# --- CUSTOM CSS FOR BRANDING ---
+st.markdown("""
+<style>
+    [data-testid="stMetric"] {
+        background-color: #FFF0F5;
+        border-radius: 10px;
+        padding: 10px;
+        border: 1px solid #FFB6C1;
+    }
+    div.stButton > button {
+        background-color: #FFB6C1;
+        color: white;
+        border: none;
+    }
+</style>
+""", unsafe_allow_html=True)
 
 # --- INITIALIZE SESSION STATES ---
 if 'food_log' not in st.session_state:
@@ -14,9 +27,9 @@ if 'food_log' not in st.session_state:
 if 'exercise_log' not in st.session_state:
     st.session_state.exercise_log = []
 
-# --- PART 1: THE DATA (Brain) ---
+# --- PART 1: COMPLETE DATABASES (Your Full List) ---
 food_database = {
-    # --- CARBOHYDRATES (Standard: 15g CHO, 2g Prot, ~75 kcal) ---
+    # --- CARBOHYDRATES ---
     "Rice (1/2 cup)": {"Cals": 75, "Prot": 2, "Carbs": 15, "Fat": 0},
     "Whole Meal Bread (1 slice)": {"Cals": 75, "Prot": 2, "Carbs": 15, "Fat": 1},
     "Oats (3 tablespoons)": {"Cals": 75, "Prot": 2, "Carbs": 15, "Fat": 2},
@@ -30,8 +43,7 @@ food_database = {
     "Spaghetti (1/2 cup)": {"Cals": 75, "Prot": 2, "Carbs": 15, "Fat": 1},
     "Baked beans,canned/ Lentils (1/3 cup)": {"Cals": 75, "Prot": 2, "Carbs": 15, "Fat": 1},
 
-    # --- FRUITS (Standard: 15g CHO, 0g Prot, 60 kcal) ---
-    # Portions are estimates for 1 Serving (1 Exchange)
+    # --- FRUITS ---
     "Apple (1 small)": {"Cals": 60, "Prot": 0, "Carbs": 15, "Fat": 0},
     "Orange (1 small)": {"Cals": 60, "Prot": 0, "Carbs": 15, "Fat": 0},
     "Pear (1/2 medium)": {"Cals": 60, "Prot": 0, "Carbs": 15, "Fat": 0},
@@ -47,15 +59,14 @@ food_database = {
     "Papaya (1 slice)": {"Cals": 60, "Prot": 0, "Carbs": 15, "Fat": 0},
     "Watermelon (1 slice)": {"Cals": 60, "Prot": 0, "Carbs": 15, "Fat": 0},
 
-    # --- 🥦 VEGETABLES (Sayur) ---
-    # Low Calorie (Soups / Ulam / Blanched)
+    # --- VEGETABLES ---
     "Ulam (Cucumber/Raw Greens)":   {"Cals": 0,  "Prot": 0,  "Carbs": 0,  "Fat": 0},
     "Bayam Soup (Spinach)":         {"Cals": 45,  "Prot": 0,  "Carbs": 0,  "Fat": 5},
     "Sawi / Choy Sum (Blanched)":   {"Cals": 0,  "Prot": 0,  "Carbs": 0,  "Fat": 0},
-    "Steamed Broccoli/ cauliflower":   {"Cals": 0,  "Prot": 0,  "Carbs": 0,  "Fat": 0},
-    "Stir fry vegetables":   {"Cals": 45,  "Prot": 0,  "Carbs": 0,  "Fat": 5},
+    "Steamed Broccoli/ cauliflower": {"Cals": 0,  "Prot": 0,  "Carbs": 0,  "Fat": 0},
+    "Stir fry vegetables":          {"Cals": 45,  "Prot": 0,  "Carbs": 0,  "Fat": 5},
     
-    # --- PROTEINS (Standard: 7g Prot per exchange) ---
+    # --- PROTEINS ---
     "Chicken Drumstick (1 piece)": {"Cals": 130, "Prot": 14, "Carbs": 0, "Fat": 8},
     "Meat / Beef / Mutton (Lean - 2 matchbox size)": {"Cals": 130, "Prot": 14, "Carbs": 0, "Fat": 8},
     "Prawns (6 medium)": {"Cals": 50, "Prot": 7, "Carbs": 0, "Fat": 2},
@@ -116,191 +127,132 @@ exercise_database = {
 
     # Low Intensity / Strength
     "Yoga": 100,                      
-    "Pilates": 110,                   
+    "Pilates": 110,                    
     "House Chores": 90,
- }
+}
 
-# --- PART 2: THE APP LOGIC ---
-
-
-# --- INITIALIZE SESSION STATE (IMPORTANT!) ---
-if 'food_log' not in st.session_state:
-    st.session_state.food_log = []
+# --- PART 2: SIDEBAR (PROFILE) ---
+with st.sidebar:
+    st.image("https://cdn-icons-png.flaticon.com/512/3050/3050484.png", width=80)
+    st.header("👤 Client Profile")
     
-# --- SECTION: ADVANCED BMI & ENERGY CALCULATOR ---
-st.divider()
-st.header("📏 Body Metrics & Energy Needs")
-
-col1, col2 = st.columns(2)
-with col1:
-    height_cm = st.number_input("Height (cm)", min_value=100.0, value=160.0)
-with col2:
-    actual_weight = st.number_input("Current Weight (kg)", min_value=30.0, value=70.0)
-
-# 1. Calculate BMI
-height_m = height_cm / 100
-bmi = actual_weight / (height_m ** 2)
-
-# 2. Determine Status (Asian Pacific Cutoffs)
-if bmi < 18.5:
-    status = "Underweight"
-    color = "blue"
-elif 18.5 <= bmi < 23:
-    status = "Normal Weight"
-    color = "green"
-elif 23 <= bmi < 25:
-    status = "Overweight (At Risk)"
-    color = "orange"
-else:
-    status = "Obese"
-    color = "red"
-
-st.write(f"**BMI:** {bmi:.1f} (`{status}`)")
-
-# 3. Determine Weight for Calculation (Actual vs Adjusted)
-if bmi >= 25:
-    # Logic: If Obese, use Adjusted Body Weight
-    ideal_weight = 22 * (height_m ** 2) # Using BMI 22 as ideal target
-    adjusted_weight = ideal_weight + 0.25 * (actual_weight - ideal_weight)
+    height_cm = st.number_input("Height (cm)", 100.0, 200.0, 160.0)
+    weight_kg = st.number_input("Weight (kg)", 30.0, 200.0, 70.0)
+    activity = st.selectbox("Activity Level", ["Sedentary (x25)", "Active (x30)"])
     
-    calc_weight = adjusted_weight
-    st.warning(f"⚠️ Since BMI indicates Obesity, we use **Adjusted Body Weight ({adjusted_weight:.1f} kg)** for calorie accuracy.")
-else:
-    # Logic: Normal/Overweight use Actual Weight
-    calc_weight = actual_weight
-    st.success(f"✅ Using **Actual Weight ({actual_weight:.1f} kg)** for calculation.")
+    st.divider()
+    
+    # CALCULATE LOGIC (Advanced BMI & Adjusted Weight)
+    height_m = height_cm / 100
+    bmi = weight_kg / (height_m ** 2)
+    
+    if bmi < 18.5:
+        status = "Underweight"
+        st.info(f"BMI: {bmi:.1f} ({status})")
+        calc_weight = weight_kg
+    elif 18.5 <= bmi < 23:
+        status = "Normal"
+        st.success(f"BMI: {bmi:.1f} ({status})")
+        calc_weight = weight_kg
+    elif 23 <= bmi < 25:
+        status = "Overweight"
+        st.warning(f"BMI: {bmi:.1f} ({status})")
+        calc_weight = weight_kg
+    else:
+        status = "Obese"
+        st.error(f"BMI: {bmi:.1f} ({status})")
+        ideal_weight = 22 * (height_m ** 2)
+        adj_weight = ideal_weight + 0.25 * (weight_kg - ideal_weight)
+        calc_weight = adj_weight
+        st.caption(f"⚠️ Using Adjusted Weight: {adj_weight:.1f}kg")
 
-# 4. Calculate Energy Requirements
-activity_level = st.radio(
-    "Activity Level",
-    ["Sedentary (x25)", "Active (x30)"],
-    horizontal=True
-)
+    daily_needs = calc_weight * (25 if "Sedentary" in activity else 30)
+    st.metric("🔥 Daily Target", f"{int(daily_needs)} kcal")
 
-if "Sedentary" in activity_level:
-    daily_needs = calc_weight * 25
-else:
-    daily_needs = calc_weight * 30
+# --- PART 3: MAIN DASHBOARD ---
+st.title("🌸 May Bloom Lifestyle Tracker")
 
-st.info(f"🔥 Recommended Daily Energy Intake: **{int(daily_needs)} kcal**")
-
-# --- SECTION: ADD FOOD ---
-st.divider()
-st.subheader("Add Food to Meal")
-
-# New: Select Meal Type
-col1, col2, col3 = st.columns([1, 2, 1])
-with col1:
-    meal_type = st.selectbox("Meal Time", ["Breakfast", "Lunch", "Dinner", "Snack"])
-with col2:
-    food_choice = st.selectbox("Select Food Item", list(food_database.keys()))
-with col3:
-    quantity = st.number_input("Qty", min_value=0.5, value=1.0, step=0.5)
-
-if st.button("Add to List"):
-    item_data = food_database[food_choice]
-    st.session_state.food_log.append({
-        "Meal": meal_type,
-        "Food": food_choice,
-        "Qty": quantity,
-        "Calories": item_data["Cals"] * quantity,
-        "Protein (g)": item_data["Prot"] * quantity,
-        "Carbs (g)": item_data["Carbs"] * quantity,
-        "Fat (g)": item_data["Fat"] * quantity
-    })
-    st.success(f"Added {quantity}x {food_choice} to {meal_type}")
-
-# --- SECTION: VIEW TOTALS ---
-st.divider()
-st.subheader("📝 Daily Food Log")
-
+# Calculate Totals
 if st.session_state.food_log:
-    # Create DataFrame
-    df = pd.DataFrame(st.session_state.food_log)
-    
-    # Display the table
-    st.dataframe(df, use_container_width=True)
-
-    # Undo Button (Removes the last entry)
-    if st.button("↩️ Undo Last Entry"):
-        st.session_state.food_log.pop()
-        st.rerun()
-
-    # Calculate Grand Totals
-    grand_cals = df['Calories'].sum()
-    grand_prot = df['Protein (g)'].sum()
-    grand_carbs = df['Carbs (g)'].sum()
-    grand_fat = df['Fat (g)'].sum()
-    
-    # Metrics
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Total Calories", f"{grand_cals} kcal", delta=f"{int(daily_needs - grand_cals)} remaining")
-    c2.metric("Protein", f"{grand_prot} g")
-    c3.metric("Carbs", f"{grand_carbs} g")
-    c4.metric("Fat", f"{grand_fat} g")
-    
-    # Clear All Button
-    if st.button("🗑️ Clear Entire List"):
-        st.session_state.food_log = []
-        st.rerun()
-else:
-    st.info("Your log is empty. Start adding food above!")
-
-# --- INITIALIZE EXERCISE LOG ---
-if 'exercise_log' not in st.session_state:
-    st.session_state.exercise_log = []
-
-# --- SECTION: LOG EXERCISE ---
-st.divider()
-st.subheader("🏃‍♀️ Exercise & Activity Log")
-
-ecol1, ecol2 = st.columns([2, 1])
-with ecol1:
-    exercise_choice = st.selectbox("Select Activity", list(exercise_database.keys()))
-with ecol2:
-    duration_mult = st.number_input("Duration (Blocks of 30 mins)", min_value=0.5, value=1.0, step=0.5)
-    # Note: 1.0 = 30 mins, 2.0 = 60 mins
-
-if st.button("Add Exercise"):
-    burned = exercise_database[exercise_choice] * duration_mult
-    st.session_state.exercise_log.append({
-        "Activity": exercise_choice,
-        "Duration (mins)": duration_mult * 30,
-        "Calories Burned": burned
-    })
-    st.success(f"Added {exercise_choice} (-{int(burned)} kcal)")
-
-# --- SHOW EXERCISE LIST ---
-if st.session_state.exercise_log:
-    ex_df = pd.DataFrame(st.session_state.exercise_log)
-    st.dataframe(ex_df, use_container_width=True)
-    
-    total_burned = ex_df["Calories Burned"].sum()
-    
-    if st.button("🗑️ Clear Exercise Log"):
-        st.session_state.exercise_log = []
-        st.rerun()
-else:
-    total_burned = 0
-
-# --- SECTION: FINAL ENERGY BALANCE ---
-st.divider()
-st.header("⚖️ Final Daily Balance")
-
-# We need to recalculate food totals here to show the summary
-if st.session_state.food_log:
-    food_df = pd.DataFrame(st.session_state.food_log)
-    total_intake = food_df['Calories'].sum()
+    f_df = pd.DataFrame(st.session_state.food_log)
+    total_intake = f_df["Calories"].sum()
 else:
     total_intake = 0
 
+if st.session_state.exercise_log:
+    e_df = pd.DataFrame(st.session_state.exercise_log)
+    total_burned = e_df["Calories Burned"].sum()
+else:
+    total_burned = 0
+
 net_calories = total_intake - total_burned
-balance_status = daily_needs - net_calories
+remaining = daily_needs - net_calories
 
+# VISUAL DASHBOARD
 col1, col2, col3 = st.columns(3)
-col1.metric("Food Intake", f"{int(total_intake)} kcal")
-col2.metric("Exercise Burn", f"-{int(total_burned)} kcal")
-col3.metric("Net Calories", f"{int(net_calories)} kcal")
+col1.metric("🍽️ Food Intake", f"{int(total_intake)} kcal")
+col2.metric("🔥 Exercise Burn", f"-{int(total_burned)} kcal")
+col3.metric("⚖️ Net Calories", f"{int(net_calories)} kcal", delta=f"{int(remaining)} left")
 
-st.info(f"💡 **Analysis:** You have **{int(balance_status)} kcal** remaining to reach your maintenance goal.")
+# PROGRESS BAR
+st.write("Daily Energy Progress:")
+progress = min(max(net_calories / daily_needs, 0.0), 1.0)
+st.progress(progress)
 
+if remaining < 0:
+    st.error(f"⚠️ You are over your budget by {abs(int(remaining))} kcal!")
+else:
+    st.info(f"✅ You have **{int(remaining)} kcal** remaining.")
+
+# --- PART 4: LOGGING TABS ---
+st.divider()
+tab1, tab2 = st.tabs(["🍽️ Food Log", "🏃‍♀️ Exercise Log"])
+
+with tab1:
+    c1, c2, c3 = st.columns([2,2,1])
+    with c1:
+        meal = st.selectbox("Meal Type", ["Breakfast", "Lunch", "Dinner", "Snack"])
+    with c2:
+        food = st.selectbox("Food Item", list(food_database.keys()))
+    with c3:
+        # Using Dropdown for cleaner mobile experience
+        qty = st.selectbox("Serving", [0.5, 1.0, 1.5, 2.0, 2.5, 3.0], index=1)
+        
+    if st.button("Add Meal ➕", use_container_width=True):
+        st.session_state.food_log.append({
+            "Meal": meal, "Food": food, "Qty": qty, 
+            "Calories": food_database[food]["Cals"] * qty,
+            "Protein": food_database[food]["Prot"] * qty,
+            "Carbs": food_database[food]["Carbs"] * qty,
+            "Fat": food_database[food]["Fat"] * qty
+        })
+        st.success(f"Added {food}")
+        st.rerun()
+
+    if st.session_state.food_log:
+        st.dataframe(pd.DataFrame(st.session_state.food_log), use_container_width=True)
+        if st.button("Clear Food 🗑️"):
+            st.session_state.food_log = []
+            st.rerun()
+
+with tab2:
+    c1, c2 = st.columns([3,1])
+    with c1:
+        ex_name = st.selectbox("Activity Type", list(exercise_database.keys()))
+    with c2:
+        ex_dur = st.selectbox("Duration (30 mins)", [0.5, 1.0, 1.5, 2.0, 2.5, 3.0], index=1)
+
+    if st.button("Add Activity ➕", use_container_width=True):
+        st.session_state.exercise_log.append({
+            "Activity": ex_name, 
+            "Duration": ex_dur * 30, 
+            "Calories Burned": exercise_database[ex_name] * ex_dur
+        })
+        st.success(f"Added {ex_name}")
+        st.rerun()
+        
+    if st.session_state.exercise_log:
+        st.dataframe(pd.DataFrame(st.session_state.exercise_log), use_container_width=True)
+        if st.button("Clear Exercise 🗑️"):
+            st.session_state.exercise_log = []
+            st.rerun()
