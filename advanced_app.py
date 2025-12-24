@@ -120,83 +120,191 @@ exercise_database = {
     "House Chores": 90,
  }
 
-# --- PART 2: BMI & BMR ---
+# --- PART 2: THE APP LOGIC ---
+
+# Brand Header
+st.header("🌸 May Bloom Wellness")
+st.title("Malaysian Diet Exchange Calculator")
+st.write("Calculate calories and macros for your daily meals.")
+
+# --- INITIALIZE SESSION STATE (IMPORTANT!) ---
+if 'food_log' not in st.session_state:
+    st.session_state.food_log = []
+    
+# --- SECTION: ADVANCED BMI & ENERGY CALCULATOR ---
 st.divider()
-st.header("📏 Body Metrics")
+st.header("⚖️ Body Metrics & Energy Needs")
+
 col1, col2 = st.columns(2)
 with col1:
-    height_cm = st.number_input("Height (cm)", 100.0, 160.0)
+    height_cm = st.number_input("Height (cm)", min_value=100.0, value=160.0)
 with col2:
-    weight_kg = st.number_input("Weight (kg)", 30.0, 70.0)
+    actual_weight = st.number_input("Current Weight (kg)", min_value=30.0, value=70.0)
 
-# Calculate Logic
-bmi = weight_kg / ((height_cm/100)**2)
-if bmi >= 25:
-    adj_weight = (22 * (height_cm/100)**2) + 0.25 * (weight_kg - (22 * (height_cm/100)**2))
-    calc_weight = adj_weight
-    st.warning(f"BMI: {bmi:.1f} (Obese). Using Adjusted Weight: {adj_weight:.1f}kg")
+# 1. Calculate BMI
+height_m = height_cm / 100
+bmi = actual_weight / (height_m ** 2)
+
+# 2. Determine Status (Asian Pacific Cutoffs)
+if bmi < 18.5:
+    status = "Underweight"
+    color = "blue"
+elif 18.5 <= bmi < 23:
+    status = "Normal Weight"
+    color = "green"
+elif 23 <= bmi < 25:
+    status = "Overweight (At Risk)"
+    color = "orange"
 else:
-    calc_weight = weight_kg
-    st.success(f"BMI: {bmi:.1f} (Normal/Overweight). Using Actual Weight.")
+    status = "Obese"
+    color = "red"
 
-activity = st.radio("Activity Level", ["Sedentary (x25)", "Active (x30)"], horizontal=True)
-daily_needs = calc_weight * (25 if "Sedentary" in activity else 30)
-st.info(f"🔥 Daily Energy Goal: **{int(daily_needs)} kcal**")
+st.write(f"**BMI:** {bmi:.1f} (`{status}`)")
 
-# --- PART 3: FOOD LOG ---
+# 3. Determine Weight for Calculation (Actual vs Adjusted)
+if bmi >= 25:
+    # Logic: If Obese, use Adjusted Body Weight
+    ideal_weight = 22 * (height_m ** 2) # Using BMI 22 as ideal target
+    adjusted_weight = ideal_weight + 0.25 * (actual_weight - ideal_weight)
+    
+    calc_weight = adjusted_weight
+    st.warning(f"⚠️ Since BMI indicates Obesity, we use **Adjusted Body Weight ({adjusted_weight:.1f} kg)** for calorie accuracy.")
+else:
+    # Logic: Normal/Overweight use Actual Weight
+    calc_weight = actual_weight
+    st.success(f"✅ Using **Actual Weight ({actual_weight:.1f} kg)** for calculation.")
+
+# 4. Calculate Energy Requirements
+activity_level = st.radio(
+    "Activity Level",
+    ["Sedentary (x25)", "Active (x30)"],
+    horizontal=True
+)
+
+if "Sedentary" in activity_level:
+    daily_needs = calc_weight * 25
+else:
+    daily_needs = calc_weight * 30
+
+st.info(f"🔥 Recommended Daily Energy Intake: **{int(daily_needs)} kcal**")
+
+# --- SECTION: ADD FOOD ---
 st.divider()
-st.subheader("🍽️ Food Intake")
-f_col1, f_col2, f_col3 = st.columns([1,2,1])
-with f_col1:
-    meal = st.selectbox("Meal", ["Breakfast", "Lunch", "Dinner", "Snack"])
-with f_col2:
-    food = st.selectbox("Food", list(food_database.keys()))
-with f_col3:
-    qty = st.number_input("Qty", 0.5, 1.0, 0.5, key="food_qty")
+st.subheader("Add Food to Meal")
 
-if st.button("Add Food"):
+# New: Select Meal Type
+col1, col2, col3 = st.columns([1, 2, 1])
+with col1:
+    meal_type = st.selectbox("Meal Time", ["Breakfast", "Lunch", "Dinner", "Snack"])
+with col2:
+    food_choice = st.selectbox("Select Food Item", list(food_database.keys()))
+with col3:
+    quantity = st.number_input("Qty", min_value=0.5, value=1.0, step=0.5)
+
+if st.button("Add to List"):
+    item_data = food_database[food_choice]
     st.session_state.food_log.append({
-        "Meal": meal, "Food": food, "Qty": qty, 
-        "Calories": food_database[food]["Cals"] * qty
+        "Meal": meal_type,
+        "Food": food_choice,
+        "Qty": quantity,
+        "Calories": item_data["Cals"] * quantity,
+        "Protein (g)": item_data["Prot"] * quantity,
+        "Carbs (g)": item_data["Carbs"] * quantity,
+        "Fat (g)": item_data["Fat"] * quantity
     })
+    st.success(f"Added {quantity}x {food_choice} to {meal_type}")
+
+# --- SECTION: VIEW TOTALS ---
+st.divider()
+st.subheader("📝 Daily Food Log")
 
 if st.session_state.food_log:
-    f_df = pd.DataFrame(st.session_state.food_log)
-    st.dataframe(f_df, use_container_width=True)
-    total_in = f_df["Calories"].sum()
-else:
-    total_in = 0
+    # Create DataFrame
+    df = pd.DataFrame(st.session_state.food_log)
+    
+    # Display the table
+    st.dataframe(df, use_container_width=True)
 
-# --- PART 4: EXERCISE LOG ---
+    # Undo Button (Removes the last entry)
+    if st.button("↩️ Undo Last Entry"):
+        st.session_state.food_log.pop()
+        st.rerun()
+
+    # Calculate Grand Totals
+    grand_cals = df['Calories'].sum()
+    grand_prot = df['Protein (g)'].sum()
+    grand_carbs = df['Carbs (g)'].sum()
+    grand_fat = df['Fat (g)'].sum()
+    
+    # Metrics
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Total Calories", f"{grand_cals} kcal", delta=f"{int(daily_needs - grand_cals)} remaining")
+    c2.metric("Protein", f"{grand_prot} g")
+    c3.metric("Carbs", f"{grand_carbs} g")
+    c4.metric("Fat", f"{grand_fat} g")
+    
+    # Clear All Button
+    if st.button("🗑️ Clear Entire List"):
+        st.session_state.food_log = []
+        st.rerun()
+else:
+    st.info("Your log is empty. Start adding food above!")
+
+# --- INITIALIZE EXERCISE LOG ---
+if 'exercise_log' not in st.session_state:
+    st.session_state.exercise_log = []
+
+# --- SECTION: LOG EXERCISE ---
 st.divider()
-st.subheader("🏃‍♀️ Exercise Log")
-e_col1, e_col2 = st.columns([2,1])
-with e_col1:
-    ex_name = st.selectbox("Activity", list(exercise_database.keys()))
-with e_col2:
-    ex_dur = st.number_input("Duration (30 min blocks)", 0.5, 1.0, 0.5, key="ex_qty")
+st.subheader("🏃‍♀️ Exercise & Activity Log")
+
+ecol1, ecol2 = st.columns([2, 1])
+with ecol1:
+    exercise_choice = st.selectbox("Select Activity", list(exercise_database.keys()))
+with ecol2:
+    duration_mult = st.number_input("Duration (Blocks of 30 mins)", min_value=0.5, value=1.0, step=0.5)
+    # Note: 1.0 = 30 mins, 2.0 = 60 mins
 
 if st.button("Add Exercise"):
+    burned = exercise_database[exercise_choice] * duration_mult
     st.session_state.exercise_log.append({
-        "Activity": ex_name, 
-        "Duration (mins)": ex_dur * 30, 
-        "Calories Burned": exercise_database[ex_name] * ex_dur
+        "Activity": exercise_choice,
+        "Duration (mins)": duration_mult * 30,
+        "Calories Burned": burned
     })
+    st.success(f"Added {exercise_choice} (-{int(burned)} kcal)")
 
+# --- SHOW EXERCISE LIST ---
 if st.session_state.exercise_log:
-    e_df = pd.DataFrame(st.session_state.exercise_log)
-    st.dataframe(e_df, use_container_width=True)
-    total_out = e_df["Calories Burned"].sum()
+    ex_df = pd.DataFrame(st.session_state.exercise_log)
+    st.dataframe(ex_df, use_container_width=True)
+    
+    total_burned = ex_df["Calories Burned"].sum()
+    
+    if st.button("🗑️ Clear Exercise Log"):
+        st.session_state.exercise_log = []
+        st.rerun()
 else:
-    total_out = 0
+    total_burned = 0
 
-# --- PART 5: NET BALANCE ---
+# --- SECTION: FINAL ENERGY BALANCE ---
 st.divider()
-st.header("⚖️ Net Energy Balance")
-c1, c2, c3 = st.columns(3)
-c1.metric("Intake", f"{int(total_in)} kcal")
-c2.metric("Burned", f"-{int(total_out)} kcal")
-c3.metric("Net Total", f"{int(total_in - total_out)} kcal")
+st.header("⚖️ Final Daily Balance")
 
-remaining = daily_needs - (total_in - total_out)
-st.write(f"Goal Status: **{int(remaining)} kcal** remaining to reach maintenance.")
+# We need to recalculate food totals here to show the summary
+if st.session_state.food_log:
+    food_df = pd.DataFrame(st.session_state.food_log)
+    total_intake = food_df['Calories'].sum()
+else:
+    total_intake = 0
+
+net_calories = total_intake - total_burned
+balance_status = daily_needs - net_calories
+
+col1, col2, col3 = st.columns(3)
+col1.metric("Food Intake", f"{int(total_intake)} kcal")
+col2.metric("Exercise Burn", f"-{int(total_burned)} kcal")
+col3.metric("Net Calories", f"{int(net_calories)} kcal")
+
+st.info(f"💡 **Analysis:** You have **{int(balance_status)} kcal** remaining to reach your maintenance goal.")
+
