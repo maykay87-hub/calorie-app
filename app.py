@@ -1,3 +1,8 @@
+st.set_page_config(
+    page_title="May Bloom Wellness",
+    page_icon="🌸",  # This is the small icon on the browser tab!
+    layout="centered"
+)
 import streamlit as st
 import pandas as pd
 
