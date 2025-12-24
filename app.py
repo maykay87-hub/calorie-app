@@ -99,7 +99,7 @@ if 'food_log' not in st.session_state:
     
 # --- SECTION: ADVANCED BMI & ENERGY CALCULATOR ---
 st.divider()
-st.header("1️⃣ Body Metrics & Energy Needs")
+st.header("⚖️ Body Metrics & Energy Needs")
 
 col1, col2 = st.columns(2)
 with col1:
