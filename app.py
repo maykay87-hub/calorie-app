@@ -93,6 +93,10 @@ st.header("🌸 May Bloom Wellness")
 st.title("Malaysian Diet Exchange Calculator")
 st.write("Calculate calories and macros for your daily meals.")
 
+# --- INITIALIZE SESSION STATE (IMPORTANT!) ---
+if 'food_log' not in st.session_state:
+    st.session_state.food_log = []
+    
 # --- SECTION: ADVANCED BMI & ENERGY CALCULATOR ---
 st.divider()
 st.header("1️⃣ Body Metrics & Energy Needs")
