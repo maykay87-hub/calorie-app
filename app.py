@@ -70,59 +70,71 @@ food_database = {
     "Syrup Bandung (1 glass)": {"Cals": 150, "Prot": 2, "Carbs": 25, "Fat": 5},
     "Plain Water": {"Cals": 0, "Prot": 0, "Carbs": 0, "Fat": 0}
 }
-
 # --- PART 2: THE APP LOGIC ---
 
 # Brand Header
 st.header("🌸 May Bloom Wellness")
+st.title("Malaysian Diet Exchange Calculator")
+st.write("Calculate calories and macros for your daily meals.")
 
-# Main Title
-st.title("🥗 Malaysian Diet Exchange Calculator")
-st.write("Calculate calories and macros (Protein, Carbs, Fat) using the Malaysian Food Exchange system.")
+# --- SECTION: BMR CALCULATOR ---
+with st.expander("🔥 Calculate Daily Energy Needs"):
+    weight = st.number_input("Your Weight (kg)", min_value=10.0, value=70.0, step=0.5)
+    activity_level = st.radio(
+        "How active are you?",
+        ["Sedentary (Little to no exercise)", "Active (Exercise > 150 mins/week)"]
+    )
+    if activity_level == "Sedentary (Little to no exercise)":
+        daily_needs = weight * 25
+    else:
+        daily_needs = weight * 30
+    st.info(f"Estimated Daily Requirement: **{int(daily_needs)} kcal**")
 
-# Initialize the "Session State" to remember our list
+# Initialize Session State
 if 'food_log' not in st.session_state:
     st.session_state.food_log = []
 
 # --- SECTION: ADD FOOD ---
+st.divider()
 st.subheader("Add Food to Meal")
-col1, col2 = st.columns(2)
 
+# New: Select Meal Type
+col1, col2, col3 = st.columns([1, 2, 1])
 with col1:
-    food_choice = st.selectbox("Select Food Item", list(food_database.keys()))
-
+    meal_type = st.selectbox("Meal Time", ["Breakfast", "Lunch", "Dinner", "Snack"])
 with col2:
-    quantity = st.number_input("Quantity", min_value=0.5, value=1.0, step=0.5)
+    food_choice = st.selectbox("Select Food Item", list(food_database.keys()))
+with col3:
+    quantity = st.number_input("Qty", min_value=0.5, value=1.0, step=0.5)
 
 if st.button("Add to List"):
-    # Lookup the data
     item_data = food_database[food_choice]
-    
-    # Calculate totals
-    total_cal = item_data["Cals"] * quantity
-    total_prot = item_data["Prot"] * quantity
-    total_carbs = item_data["Carbs"] * quantity
-    total_fat = item_data["Fat"] * quantity
-    
-    # Add to the "Notebook"
     st.session_state.food_log.append({
+        "Meal": meal_type,
         "Food": food_choice,
         "Qty": quantity,
-        "Calories": total_cal,
-        "Protein (g)": total_prot,
-        "Carbs (g)": total_carbs,
-        "Fat (g)": total_fat
+        "Calories": item_data["Cals"] * quantity,
+        "Protein (g)": item_data["Prot"] * quantity,
+        "Carbs (g)": item_data["Carbs"] * quantity,
+        "Fat (g)": item_data["Fat"] * quantity
     })
-    st.success(f"Added {quantity} x {food_choice}")
+    st.success(f"Added {quantity}x {food_choice} to {meal_type}")
 
 # --- SECTION: VIEW TOTALS ---
 st.divider()
-st.subheader("📝 Your Meal Log")
+st.subheader("📝 Daily Food Log")
 
 if st.session_state.food_log:
-    # Show the table
+    # Create DataFrame
     df = pd.DataFrame(st.session_state.food_log)
-    st.table(df)
+    
+    # Display the table
+    st.dataframe(df, use_container_width=True)
+
+    # Undo Button (Removes the last entry)
+    if st.button("↩️ Undo Last Entry"):
+        st.session_state.food_log.pop()
+        st.rerun()
 
     # Calculate Grand Totals
     grand_cals = df['Calories'].sum()
@@ -130,16 +142,16 @@ if st.session_state.food_log:
     grand_carbs = df['Carbs (g)'].sum()
     grand_fat = df['Fat (g)'].sum()
     
-    # Display Metrics in 4 columns
+    # Metrics
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Calories", f"{grand_cals} kcal")
+    c1.metric("Total Calories", f"{grand_cals} kcal", delta=f"{int(daily_needs - grand_cals)} remaining")
     c2.metric("Protein", f"{grand_prot} g")
     c3.metric("Carbs", f"{grand_carbs} g")
     c4.metric("Fat", f"{grand_fat} g")
     
-    # Clear Button
-    if st.button("Clear List"):
+    # Clear All Button
+    if st.button("🗑️ Clear Entire List"):
         st.session_state.food_log = []
         st.rerun()
 else:
-    st.info("No food added yet. Start building your meal above!")
+    st.info("Your log is empty. Start adding food above!")
