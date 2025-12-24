@@ -34,7 +34,7 @@ food_database = {
 
     # --- PROTEINS (Standard: 7g Prot per exchange) ---
     "Chicken Drumstick (1 piece)": {"Cals": 130, "Prot": 14, "Carbs": 0, "Fat": 8},
-    "Meat / Beef / Mutton (Lean - 2 matchbox size)": {"Cals": 65, "Prot": 7, "Carbs": 0, "Fat": 4},
+    "Meat / Beef / Mutton (Lean - 2 matchbox size)": {"Cals": 130, "Prot": 14, "Carbs": 0, "Fat": 8},
     "Prawns (6 medium)": {"Cals": 50, "Prot": 7, "Carbs": 0, "Fat": 2},
     "Egg (1 whole)": {"Cals": 65, "Prot": 7, "Carbs": 0, "Fat": 5},
     "Fish (1 medium piece)": {"Cals": 80, "Prot": 14, "Carbs": 0, "Fat": 2},
