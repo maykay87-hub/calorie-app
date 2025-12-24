@@ -122,7 +122,7 @@ exercise_database = {
 
 # --- PART 2: BMI & BMR ---
 st.divider()
-st.header("1️⃣ Body Metrics")
+st.header("📏 Body Metrics")
 col1, col2 = st.columns(2)
 with col1:
     height_cm = st.number_input("Height (cm)", 100.0, 160.0)
