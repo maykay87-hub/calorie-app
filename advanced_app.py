@@ -118,6 +118,7 @@ exercise_database = {
     "Yoga": 100,                      
     "Pilates": 110,                   
     "House Chores": 90,
+ }
 
 # --- PART 2: BMI & BMR ---
 st.divider()
