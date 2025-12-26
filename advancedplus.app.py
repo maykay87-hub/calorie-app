@@ -1,6 +1,47 @@
 import streamlit as st
 import pandas as pd
 
+# 1. Create a dictionary of allowed users (Username -> Password)
+# In a real app, you might hide these in st.secrets, but this works for simple cases
+USERS = {
+    "jane": "wellness2025",
+    "mark": "fitness123",
+    "admin": "adminpass"
+}
+
+def check_login(username, password):
+    if username in USERS and USERS[username] == password:
+        return True
+    return False
+
+# 2. Check if user is already logged in
+if 'logged_in' not in st.session_state:
+    st.session_state.logged_in = False
+
+# 3. Show Login Form if not logged in
+if not st.session_state.logged_in:
+    st.title("May Bloom Wellness 🔒")
+    st.markdown("Please log in to access your tracker.")
+    
+    username = st.text_input("Username")
+    password = st.text_input("Password", type="password")
+    
+    if st.button("Log In"):
+        if check_login(username, password):
+            st.session_state.logged_in = True
+            st.rerun() # Refresh the app to show content
+        else:
+            st.error("Incorrect username or password")
+            
+    # Stop the app here so the rest of your code doesn't run
+    st.stop() 
+
+# ==========================================
+# YOUR MAIN APP CODE GOES HERE
+# ==========================================
+
+st.sidebar.button("Log Out", on_click=lambda: st.session_state.update(logged_in=False))
+
 # --- APP CONFIGURATION ---
 st.set_page_config(page_title="May Bloom Advanced", page_icon="🌸", layout="wide")
 
