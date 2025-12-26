@@ -303,9 +303,17 @@ with tab1:
 
     if st.session_state.food_log:
         st.dataframe(pd.DataFrame(st.session_state.food_log), use_container_width=True)
-        if st.button("Clear Food 🗑️"):
-            st.session_state.food_log = []
-            st.rerun()
+        
+        # --- NEW: UNDO AND CLEAR BUTTONS ---
+        col_undo, col_clear = st.columns(2)
+        with col_undo:
+            if st.button("Undo Last Entry ↩️", use_container_width=True):
+                st.session_state.food_log.pop()
+                st.rerun()
+        with col_clear:
+            if st.button("Clear All Food 🗑️", use_container_width=True):
+                st.session_state.food_log = []
+                st.rerun()
 
 with tab2:
     c1, c2 = st.columns([3,1])
@@ -324,6 +332,14 @@ with tab2:
         
     if st.session_state.exercise_log:
         st.dataframe(pd.DataFrame(st.session_state.exercise_log), use_container_width=True)
-        if st.button("Clear Exercise 🗑️"):
-            st.session_state.exercise_log = []
-            st.rerun()
+        
+        # --- NEW: UNDO AND CLEAR BUTTONS ---
+        col_undo, col_clear = st.columns(2)
+        with col_undo:
+            if st.button("Undo Last Activity ↩️", use_container_width=True):
+                st.session_state.exercise_log.pop()
+                st.rerun()
+        with col_clear:
+            if st.button("Clear All Exercise 🗑️", use_container_width=True):
+                st.session_state.exercise_log = []
+                st.rerun()
