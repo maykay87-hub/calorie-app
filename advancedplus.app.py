@@ -1,5 +1,61 @@
 import streamlit as st
 import pandas as pd
+import time
+
+# --- AUTHENTICATION LOGIC ---
+
+def check_password():
+    """Returns `True` if the user had the correct password."""
+
+    def password_entered():
+        """Checks whether a password entered by the user is correct."""
+        if st.session_state["username"] in st.secrets["passwords"] and \
+           st.session_state["password"] == st.secrets["passwords"][st.session_state["username"]]:
+            st.session_state["password_correct"] = True
+            del st.session_state["password"]  # Don't store password
+        else:
+            st.session_state["password_correct"] = False
+
+    # Initialize session state variables
+    if "password_correct" not in st.session_state:
+        st.session_state["password_correct"] = False
+
+    # If already logged in, return True immediately
+    if st.session_state["password_correct"]:
+        return True
+
+    # Show inputs for username and password
+    st.markdown("## 🔒 Client Login")
+    st.markdown("Please sign in to access your wellness tracker.")
+    
+    st.text_input("Username", key="username")
+    st.text_input("Password", type="password", key="password")
+    
+    if st.button("Log In", on_click=password_entered):
+        # The logic is handled in the on_click callback
+        pass
+
+    if "password_correct" in st.session_state and st.session_state["password_correct"] == False:
+        st.error("😕 User not found or password incorrect")
+        
+    return False
+
+# --- MAIN APP EXECUTION ---
+
+# This line stops the app from running if login fails
+if not check_password():
+    st.stop()  # Do not run anything below this line!
+
+# ==========================================
+# PASTE YOUR ORIGINAL APP CODE BELOW THIS LINE
+# ==========================================
+
+# Add a logout button in the sidebar
+with st.sidebar:
+    st.write(f"Logged in as: **{st.session_state['username']}**")
+    if st.button("Log Out"):
+        st.session_state["password_correct"] = False
+        st.rerun()
 
 # 1. Create a dictionary of allowed users (Username -> Password)
 # In a real app, you might hide these in st.secrets, but this works for simple cases
