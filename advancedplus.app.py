@@ -24,10 +24,8 @@ def format_log_to_string(log_list, type="food"):
     text_summary = []
     for item in log_list:
         if type == "food":
-            # Example: "Breakfast: Nasi Lemak (x1.0)"
             text_summary.append(f"{item['Meal']}: {item['Food']} (x{item['Qty']})")
         else:
-            # Example: "Jogging (60.0 mins)"
             text_summary.append(f"{item['Activity']} ({item['Duration']} mins)")
             
     return ", ".join(text_summary)
@@ -36,12 +34,9 @@ def save_daily_summary(food_log, exercise_log, net_calories):
     """Saves the detailed logs to Google Sheets"""
     try:
         sheet = get_sheet_connection()
-        
-        # 1. Convert the lists to readable strings
         food_str = format_log_to_string(food_log, type="food")
         exercise_str = format_log_to_string(exercise_log, type="exercise")
         
-        # 2. Create the row: Date, Food Detail, Exercise Detail, Net Cals, Username
         new_row = [
             str(date.today()), 
             food_str, 
@@ -64,7 +59,6 @@ def check_password():
     if st.session_state["logged_in"]:
         return True
 
-    # Login Design
     st.markdown("<h1 style='text-align: center; color: #FF69B4;'>🌸 May Bloom Login</h1>", unsafe_allow_html=True)
     
     col1, col2, col3 = st.columns([1,2,1])
@@ -82,7 +76,6 @@ def check_password():
                 st.error("Incorrect username or password.")
     return False
 
-# 🛑 BLOCK APP IF NOT LOGGED IN
 if not check_password():
     st.stop()
 
@@ -191,12 +184,9 @@ food_database = {
 }
 
 exercise_database = {
-    # High
     "Zumba / Aerobics": 250, "Pound (Cardio Drumming)": 240, "Jogging": 240,
     "Swimming (Laps)": 230, "Badminton (Competitive)": 220, "Cycling": 200,
-    # Moderate
     "Badminton / Pickleball (Casual)": 150, "Walking (Brisk)": 130, "Gardening": 140,
-    # Low
     "Yoga": 100, "Pilates": 110, "House Chores": 90,
 }
 
@@ -210,7 +200,6 @@ with st.sidebar:
     activity = st.selectbox("Activity Level", ["Sedentary (x25)", "Active (x30)"])
     st.divider()
     
-    # BMI LOGIC
     height_m = height_cm / 100
     bmi = weight_kg / (height_m ** 2)
     
@@ -272,7 +261,6 @@ else:
 
 # --- SAVE TO CLOUD BUTTON ---
 st.markdown("---")
-# We pass the full lists (session state) to the save function
 if st.button("☁️ Save Daily Summary to Cloud", use_container_width=True):
     if save_daily_summary(st.session_state.food_log, st.session_state.exercise_log, net_calories):
         st.success("Daily summary saved to Google Sheets!")
@@ -303,8 +291,9 @@ with tab1:
 
     if st.session_state.food_log:
         st.dataframe(pd.DataFrame(st.session_state.food_log), use_container_width=True)
+        # --- NEW: TOTAL CALORIES DISPLAY HERE ---
+        st.info(f"🍽️ **Total Calories in this list:** {int(total_intake)} kcal")
         
-        # --- NEW: UNDO AND CLEAR BUTTONS ---
         col_undo, col_clear = st.columns(2)
         with col_undo:
             if st.button("Undo Last Entry ↩️", use_container_width=True):
@@ -332,8 +321,9 @@ with tab2:
         
     if st.session_state.exercise_log:
         st.dataframe(pd.DataFrame(st.session_state.exercise_log), use_container_width=True)
+        # --- NEW: TOTAL BURN DISPLAY HERE ---
+        st.info(f"🔥 **Total Calories Burned:** {int(total_burned)} kcal")
         
-        # --- NEW: UNDO AND CLEAR BUTTONS ---
         col_undo, col_clear = st.columns(2)
         with col_undo:
             if st.button("Undo Last Activity ↩️", use_container_width=True):
