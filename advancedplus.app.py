@@ -10,17 +10,26 @@ st.set_page_config(page_title="May Bloom Advanced", page_icon="🌸", layout="wi
 # --- 2. GOOGLE SHEETS CONNECTION ---
 SHEET_NAME = "wellness_database"
 
-def get_sheet_connection(worksheet_name="sheet1"):
-    """Connects to a specific worksheet in Google Sheets"""
+def get_sheet_connection(type="main"):
+    """
+    Connects to Google Sheets.
+    type="main" -> Returns the FIRST tab (your data logs)
+    type="feedback" -> Returns the 'feedback' tab
+    """
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     creds = ServiceAccountCredentials.from_json_keyfile_dict(dict(st.secrets["service_account"]), scope)
     client = gspread.authorize(creds)
-    # Open the main file, then get the specific tab
-    try:
-        return client.open(SHEET_NAME).worksheet(worksheet_name)
-    except:
-        # Fallback if specific tab doesn't exist yet
-        return None
+    
+    spreadsheet = client.open(SHEET_NAME)
+    
+    if type == "feedback":
+        try:
+            return spreadsheet.worksheet("feedback")
+        except:
+            return None # Feedback tab doesn't exist
+    else:
+        # "get_worksheet(0)" always grabs the first tab, no matter if it's named "Sheet1" or "sheet1"
+        return spreadsheet.get_worksheet(0)
 
 def format_log_to_string(log_list, type="food"):
     if not log_list: return "None"
@@ -34,8 +43,8 @@ def format_log_to_string(log_list, type="food"):
 
 def save_daily_summary(selected_date, food_log, exercise_log, net_calories):
     try:
-        # Save to the main log sheet (Sheet1)
-        sheet = get_sheet_connection("sheet1")
+        # Save to the main log sheet (First Tab)
+        sheet = get_sheet_connection("main")
         food_str = format_log_to_string(food_log, type="food")
         exercise_str = format_log_to_string(exercise_log, type="exercise")
         
@@ -81,7 +90,7 @@ if st.session_state["username"] == "admin":
     st.success("Welcome, Coach! Here is the master view.")
     
     try:
-        sheet = get_sheet_connection("sheet1")
+        sheet = get_sheet_connection("main")
         data = sheet.get_all_records()
         df_master = pd.DataFrame(data)
         
@@ -96,7 +105,6 @@ if st.session_state["username"] == "admin":
             st.subheader("📋 Client Logs")
             st.dataframe(df_master, use_container_width=True)
             
-            # --- FEEDBACK REMINDER ---
             st.info("💡 Tip: To give feedback, go to the 'feedback' tab in Google Sheets and add a row for your client!")
 
     except Exception as e:
@@ -199,29 +207,26 @@ exercise_database = {
     "Yoga": 100, "Pilates": 110, "House Chores": 90,
 }
 
-# --- SIDEBAR (UPDATED WITH FEEDBACK) ---
+# --- SIDEBAR (UPDATED) ---
 with st.sidebar:
     st.image("https://cdn-icons-png.flaticon.com/512/3050/3050484.png", width=80)
     st.header(f"👤 {st.session_state['username'].title()}")
     
-    # --- 💌 NEW: COACH FEEDBACK SECTION ---
+    # --- 💌 COACH FEEDBACK ---
     try:
         feedback_sheet = get_sheet_connection("feedback")
         if feedback_sheet:
             fb_data = feedback_sheet.get_all_records()
             fb_df = pd.DataFrame(fb_data)
             
-            # Check if this user has feedback
             if not fb_df.empty and "username" in fb_df.columns:
                 user_fb = fb_df[fb_df["username"] == st.session_state["username"]]
-                
                 if not user_fb.empty:
-                    # Get the very last note added
                     last_note = user_fb.iloc[-1]
                     st.info(f"💌 **Coach's Note ({last_note['month']}):**\n\n{last_note['note']}")
     except:
-        pass # If error (e.g., sheet not made yet), just hide this section
-    # --------------------------------------
+        pass 
+    # -------------------------
 
     st.divider()
     
@@ -367,7 +372,7 @@ with tab2:
 with tab3:
     st.header("📜 Your Wellness History")
     try:
-        sheet = get_sheet_connection("sheet1")
+        sheet = get_sheet_connection("main")
         data = sheet.get_all_records()
         df_history = pd.DataFrame(data)
         
