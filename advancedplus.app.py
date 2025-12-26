@@ -28,7 +28,7 @@ def get_sheet_connection(type="main"):
         except:
             return None # Feedback tab doesn't exist
     else:
-        # "get_worksheet(0)" always grabs the first tab, no matter if it's named "Sheet1" or "sheet1"
+        # "get_worksheet(0)" always grabs the first tab
         return spreadsheet.get_worksheet(0)
 
 def format_log_to_string(log_list, type="food"):
@@ -86,6 +86,33 @@ if not check_password():
 # PART 4: ADMIN DASHBOARD
 # ==========================================
 if st.session_state["username"] == "admin":
+    
+    # --- ADMIN SIDEBAR START ---
+    with st.sidebar:
+        st.header("👑 Admin Panel")
+        
+        # Admin Feedback Check (To test if the blue box works)
+        try:
+            feedback_sheet = get_sheet_connection("feedback")
+            if feedback_sheet:
+                fb_data = feedback_sheet.get_all_records()
+                fb_df = pd.DataFrame(fb_data)
+                
+                if not fb_df.empty and "username" in fb_df.columns:
+                    # Check if 'admin' has a note
+                    user_fb = fb_df[fb_df["username"] == "admin"]
+                    if not user_fb.empty:
+                        last_note = user_fb.iloc[-1]
+                        st.info(f"💌 **Test Note ({last_note['month']}):**\n\n{last_note['note']}")
+        except:
+            pass
+
+        st.divider()
+        if st.button("Log Out Admin"):
+            st.session_state["logged_in"] = False
+            st.rerun()
+    # --- ADMIN SIDEBAR END ---
+
     st.title("👑 Admin Dashboard")
     st.success("Welcome, Coach! Here is the master view.")
     
@@ -110,9 +137,6 @@ if st.session_state["username"] == "admin":
     except Exception as e:
         st.error(f"System Error: {e}")
         
-    if st.button("Log Out Admin"):
-        st.session_state["logged_in"] = False
-        st.rerun()
     st.stop() 
 
 # ==========================================
