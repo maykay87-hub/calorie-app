@@ -66,7 +66,7 @@ if not check_password():
     st.stop()
 
 # ==========================================
-# PART 4: ADMIN DASHBOARD (Only for you!)
+# PART 4: ADMIN DASHBOARD (CRASH PROOF)
 # ==========================================
 if st.session_state["username"] == "admin":
     st.title("👑 Admin Dashboard")
@@ -78,13 +78,17 @@ if st.session_state["username"] == "admin":
         df_master = pd.DataFrame(data)
         
         if df_master.empty:
-            st.warning("No data found in Google Sheet.")
+            st.warning("⚠️ The Google Sheet is currently empty. Waiting for clients to add data.")
+        elif "username" not in df_master.columns:
+            st.error("❌ Error: Column 'username' not found.")
+            st.info("Please go to your Google Sheet and ensure Cell E1 is named exactly: username")
+            st.dataframe(df_master) # Show what IS there so you can debug
         else:
             # Metrics
             col1, col2, col3 = st.columns(3)
             col1.metric("Total Entries", len(df_master))
             col2.metric("Total Clients", df_master['username'].nunique())
-            col3.metric("Latest Entry", df_master.iloc[-1]['Date'] if not df_master.empty else "N/A")
+            col3.metric("Latest Entry", df_master.iloc[-1]['Date'] if 'Date' in df_master.columns else "N/A")
             
             # Show Raw Data
             st.subheader("📋 Master Database")
@@ -110,7 +114,7 @@ if st.session_state["username"] == "admin":
             )
             
     except Exception as e:
-        st.error(f"Error loading admin data: {e}")
+        st.error(f"System Error: {e}")
         
     if st.button("Log Out Admin"):
         st.session_state["logged_in"] = False
@@ -120,7 +124,7 @@ if st.session_state["username"] == "admin":
     st.stop() 
 
 # ==========================================
-# PART 5: REGULAR CLIENT APP (Your Original Code)
+# PART 5: REGULAR CLIENT APP
 # ==========================================
 
 # --- CUSTOM CSS ---
@@ -368,6 +372,7 @@ with tab3:
                 st.warning("No records found for your username.")
             else:
                 st.dataframe(my_history.drop(columns=["username"]), use_container_width=True)
-                st.line_chart(my_history, x="Date", y="Net_Calories")
+                if not my_history.empty:
+                    st.line_chart(my_history, x="Date", y="Net_Calories")
     except Exception as e:
         st.error(f"Could not load history: {e}")
