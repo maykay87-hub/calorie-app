@@ -1,112 +1,132 @@
 import streamlit as st
 import pandas as pd
-import time
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
 
-# --- AUTHENTICATION LOGIC ---
+# --- CONFIGURATION ---
+# This must match your Google Sheet name exactly
+SHEET_NAME = "wellness_database" 
 
-def check_password():
-    """Returns `True` if the user had the correct password."""
-
-    def password_entered():
-        """Checks whether a password entered by the user is correct."""
-        if st.session_state["username"] in st.secrets["passwords"] and \
-           st.session_state["password"] == st.secrets["passwords"][st.session_state["username"]]:
-            st.session_state["password_correct"] = True
-            del st.session_state["password"]  # Don't store password
-        else:
-            st.session_state["password_correct"] = False
-
-    # Initialize session state variables
-    if "password_correct" not in st.session_state:
-        st.session_state["password_correct"] = False
-
-    # If already logged in, return True immediately
-    if st.session_state["password_correct"]:
-        return True
-
-    # Show inputs for username and password
-    st.markdown("## 🔒 Client Login")
-    st.markdown("Please sign in to access your wellness tracker.")
+# --- 1. GOOGLE SHEETS CONNECTION ---
+def get_sheet_connection():
+    """Connects to Google Sheets using your Secrets."""
+    # Define what the bot is allowed to do
+    scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     
-    st.text_input("Username", key="username")
-    st.text_input("Password", type="password", key="password")
+    # Connect using the secret JSON you put in the dashboard
+    creds = ServiceAccountCredentials.from_json_keyfile_dict(dict(st.secrets["service_account"]), scope)
+    client = gspread.authorize(creds)
     
-    if st.button("Log In", on_click=password_entered):
-        # The logic is handled in the on_click callback
-        pass
+    # Open the specific sheet
+    sheet = client.open(SHEET_NAME).sheet1
+    return sheet
 
-    if "password_correct" in st.session_state and st.session_state["password_correct"] == False:
-        st.error("😕 User not found or password incorrect")
-        
-    return False
-
-# --- MAIN APP EXECUTION ---
-
-# This line stops the app from running if login fails
-if not check_password():
-    st.stop()  # Do not run anything below this line!
-
-# ==========================================
-# PASTE YOUR ORIGINAL APP CODE BELOW THIS LINE
-# ==========================================
-
-# Add a logout button in the sidebar
-with st.sidebar:
-    st.write(f"Logged in as: **{st.session_state['username']}**")
-    if st.button("Log Out"):
-        st.session_state["password_correct"] = False
-        st.rerun()
-
-# 1. Create a dictionary of allowed users (Username -> Password)
-# In a real app, you might hide these in st.secrets, but this works for simple cases
-USERS = {
-    "jane": "wellness2025",
-    "mark": "fitness123",
-    "admin": "adminpass"
-}
-
+# --- 2. SECURE LOGIN SYSTEM ---
 def check_password():
+    """Returns True if the user is logged in via Streamlit Secrets."""
+    
+    # Initialize the "logged_in" state if it doesn't exist
     if "logged_in" not in st.session_state:
         st.session_state["logged_in"] = False
+        st.session_state["username"] = ""
 
+    # If already logged in, we are good to go
     if st.session_state["logged_in"]:
         return True
 
+    # Show the Login Box
     st.header("🔒 Client Login")
-    username = st.text_input("Username")
-    password = st.text_input("Password", type="password")
+    username_input = st.text_input("Username")
+    password_input = st.text_input("Password", type="password")
     
     if st.button("Log In"):
-        # This specific line tells the app to check the SECRETS, not the code
-        if username in st.secrets["passwords"] and password == st.secrets["passwords"][username]:
+        # This looks at your SECRETS dashboard, NOT any hardcoded list
+        if username_input in st.secrets["passwords"] and \
+           password_input == st.secrets["passwords"][username_input]:
+            
             st.session_state["logged_in"] = True
-            st.session_state["username"] = username
-            st.rerun()
+            st.session_state["username"] = username_input
+            st.rerun() # Refresh to show the app
         else:
             st.error("Incorrect username or password.")
+            
     return False
 
-# 2. Check if user is already logged in
-if 'logged_in' not in st.session_state:
-    st.session_state.logged_in = False
+# --- 3. DATA FUNCTIONS ---
+def load_data():
+    """Fetch all data from Google Sheet"""
+    sheet = get_sheet_connection()
+    data = sheet.get_all_records()
+    df = pd.DataFrame(data)
+    
+    # If the sheet is empty, create a blank dataframe with columns
+    if df.empty:
+        return pd.DataFrame(columns=["Date", "Mood", "Steps", "Notes", "username"])
+    return df
 
-# 3. Show Login Form if not logged in
-if not st.session_state.logged_in:
-    st.title("May Bloom Wellness 🔒")
-    st.markdown("Please log in to access your tracker.")
-    
-    username = st.text_input("Username")
-    password = st.text_input("Password", type="password")
-    
-    if st.button("Log In"):
-        if check_login(username, password):
-            st.session_state.logged_in = True
-            st.rerun() # Refresh the app to show content
-        else:
-            st.error("Incorrect username or password")
+def save_entry(date, mood, steps, notes):
+    """Save new row to Google Sheet"""
+    sheet = get_sheet_connection()
+    # Create the row data. Order matters! Matches headers A, B, C, D, E
+    new_row = [str(date), mood, steps, notes, st.session_state["username"]]
+    sheet.append_row(new_row)
+
+# ==========================================
+# MAIN APP EXECUTION starts here
+# ==========================================
+
+# A. CHECK LOGIN
+# If this returns False, the app stops here. It will not run the code below.
+if not check_password():
+    st.stop()
+
+# B. SIDEBAR LOGOUT
+with st.sidebar:
+    st.write(f"👤 Logged in as: **{st.session_state['username']}**")
+    if st.button("Log Out"):
+        st.session_state["logged_in"] = False
+        st.rerun()
+
+# C. MAIN APP CONTENT
+try:
+    # Load data from Google Sheets
+    with st.spinner('Loading data...'):
+        master_df = load_data()
+        
+    # FILTER: Only show data for the currently logged-in user
+    user_data = master_df[master_df["username"] == st.session_state["username"]]
+
+    st.title(f"🌸 Welcome, {st.session_state['username'].title()}!")
+
+    tab1, tab2 = st.tabs(["📝 Add Daily Log", "📊 My Progress"])
+
+    # Tab 1: Input Form
+    with tab1:
+        with st.form("entry_form"):
+            st.subheader("How are you today?")
+            date = st.date_input("Date")
+            mood = st.selectbox("Mood", ["Happy", "Neutral", "Tired", "Stressed", "Energetic"])
+            steps = st.number_input("Steps", step=100)
+            notes = st.text_area("Notes")
             
-    # Stop the app here so the rest of your code doesn't run
-    st.stop() 
+            if st.form_submit_button("Save Entry"):
+                save_entry(date, mood, steps, notes)
+                st.success("✅ Saved to Google Sheet!")
+                st.rerun()
+
+    # Tab 2: View History
+    with tab2:
+        if user_data.empty:
+            st.info("No logs found yet. Start tracking!")
+        else:
+            st.metric("Total Logs", len(user_data))
+            st.line_chart(user_data, x="Date", y="Steps")
+            # Don't show the username column to the user (it's redundant)
+            st.dataframe(user_data.drop(columns=["username"]))
+
+except Exception as e:
+    st.error(f"⚠️ Error connecting to Google Sheets: {e}")
+    st.info("Check that you shared the Google Sheet with the bot email inside your JSON file.")
 
 # ==========================================
 # YOUR MAIN APP CODE GOES HERE
