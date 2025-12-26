@@ -10,11 +10,17 @@ st.set_page_config(page_title="May Bloom Advanced", page_icon="🌸", layout="wi
 # --- 2. GOOGLE SHEETS CONNECTION ---
 SHEET_NAME = "wellness_database"
 
-def get_sheet_connection():
+def get_sheet_connection(worksheet_name="sheet1"):
+    """Connects to a specific worksheet in Google Sheets"""
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     creds = ServiceAccountCredentials.from_json_keyfile_dict(dict(st.secrets["service_account"]), scope)
     client = gspread.authorize(creds)
-    return client.open(SHEET_NAME).sheet1
+    # Open the main file, then get the specific tab
+    try:
+        return client.open(SHEET_NAME).worksheet(worksheet_name)
+    except:
+        # Fallback if specific tab doesn't exist yet
+        return None
 
 def format_log_to_string(log_list, type="food"):
     if not log_list: return "None"
@@ -26,14 +32,13 @@ def format_log_to_string(log_list, type="food"):
             text_summary.append(f"{item['Activity']} ({item['Duration']} mins)")
     return ", ".join(text_summary)
 
-# UPDATED: Now accepts 'selected_date'
 def save_daily_summary(selected_date, food_log, exercise_log, net_calories):
     try:
-        sheet = get_sheet_connection()
+        # Save to the main log sheet (Sheet1)
+        sheet = get_sheet_connection("sheet1")
         food_str = format_log_to_string(food_log, type="food")
         exercise_str = format_log_to_string(exercise_log, type="exercise")
         
-        # Use str(selected_date) to save the date the user picked
         new_row = [str(selected_date), food_str, exercise_str, net_calories, st.session_state["username"]]
         sheet.append_row(new_row)
         return True
@@ -69,42 +74,31 @@ if not check_password():
     st.stop()
 
 # ==========================================
-# PART 4: ADMIN DASHBOARD (CRASH PROOF)
+# PART 4: ADMIN DASHBOARD
 # ==========================================
 if st.session_state["username"] == "admin":
     st.title("👑 Admin Dashboard")
-    st.success("Welcome, Coach! Here is the master view of all client data.")
+    st.success("Welcome, Coach! Here is the master view.")
     
     try:
-        sheet = get_sheet_connection()
+        sheet = get_sheet_connection("sheet1")
         data = sheet.get_all_records()
         df_master = pd.DataFrame(data)
         
         if df_master.empty:
-            st.warning("⚠️ The Google Sheet is currently empty. Waiting for clients to add data.")
-        elif "username" not in df_master.columns:
-            st.error("❌ Error: Column 'username' not found.")
-            st.info("Please go to your Google Sheet and ensure Cell E1 is named exactly: username")
-            st.dataframe(df_master) 
+            st.warning("⚠️ Google Sheet is empty.")
         else:
             col1, col2, col3 = st.columns(3)
             col1.metric("Total Entries", len(df_master))
             col2.metric("Total Clients", df_master['username'].nunique())
             col3.metric("Latest Entry", df_master.iloc[-1]['Date'] if 'Date' in df_master.columns else "N/A")
             
-            st.subheader("📋 Master Database")
+            st.subheader("📋 Client Logs")
             st.dataframe(df_master, use_container_width=True)
             
-            st.subheader("🔍 Inspect Client")
-            client_list = df_master['username'].unique()
-            selected_client = st.selectbox("Select Client to View", client_list)
-            client_data = df_master[df_master['username'] == selected_client]
-            st.dataframe(client_data)
-            
-            st.subheader("📥 Export Data")
-            csv = df_master.to_csv(index=False).encode('utf-8')
-            st.download_button("Download Master CSV", csv, "wellness_master_data.csv", "text/csv", key='download-csv')
-            
+            # --- FEEDBACK REMINDER ---
+            st.info("💡 Tip: To give feedback, go to the 'feedback' tab in Google Sheets and add a row for your client!")
+
     except Exception as e:
         st.error(f"System Error: {e}")
         
@@ -205,10 +199,31 @@ exercise_database = {
     "Yoga": 100, "Pilates": 110, "House Chores": 90,
 }
 
-# --- SIDEBAR ---
+# --- SIDEBAR (UPDATED WITH FEEDBACK) ---
 with st.sidebar:
     st.image("https://cdn-icons-png.flaticon.com/512/3050/3050484.png", width=80)
     st.header(f"👤 {st.session_state['username'].title()}")
+    
+    # --- 💌 NEW: COACH FEEDBACK SECTION ---
+    try:
+        feedback_sheet = get_sheet_connection("feedback")
+        if feedback_sheet:
+            fb_data = feedback_sheet.get_all_records()
+            fb_df = pd.DataFrame(fb_data)
+            
+            # Check if this user has feedback
+            if not fb_df.empty and "username" in fb_df.columns:
+                user_fb = fb_df[fb_df["username"] == st.session_state["username"]]
+                
+                if not user_fb.empty:
+                    # Get the very last note added
+                    last_note = user_fb.iloc[-1]
+                    st.info(f"💌 **Coach's Note ({last_note['month']}):**\n\n{last_note['note']}")
+    except:
+        pass # If error (e.g., sheet not made yet), just hide this section
+    # --------------------------------------
+
+    st.divider()
     
     height_cm = st.number_input("Height (cm)", 100.0, 200.0, 160.0)
     weight_kg = st.number_input("Weight (kg)", 30.0, 200.0, 70.0)
@@ -244,9 +259,7 @@ with st.sidebar:
 # --- MAIN DASHBOARD ---
 st.title("🌸 May Bloom Lifestyle Tracker")
 
-# --- UPDATED: Date Picker for Backdating ---
 entry_date = st.date_input("📅 Date of Entry", date.today())
-# -------------------------------------------
 
 # Calculate Totals
 if st.session_state.food_log:
@@ -281,7 +294,6 @@ else:
 # --- SAVE TO CLOUD BUTTON ---
 st.markdown("---")
 if st.button("☁️ Save Daily Summary to Cloud", use_container_width=True):
-    # Pass 'entry_date' to the save function
     if save_daily_summary(entry_date, st.session_state.food_log, st.session_state.exercise_log, net_calories):
         st.success(f"Daily summary for {entry_date} saved to Google Sheets!")
         st.balloons()
@@ -355,7 +367,7 @@ with tab2:
 with tab3:
     st.header("📜 Your Wellness History")
     try:
-        sheet = get_sheet_connection()
+        sheet = get_sheet_connection("sheet1")
         data = sheet.get_all_records()
         df_history = pd.DataFrame(data)
         
