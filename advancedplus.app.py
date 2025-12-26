@@ -2,142 +2,95 @@ import streamlit as st
 import pandas as pd
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
+from datetime import date
 
-# --- CONFIGURATION ---
-# This must match your Google Sheet name exactly
-SHEET_NAME = "wellness_database" 
+# --- 1. APP CONFIGURATION ---
+st.set_page_config(page_title="May Bloom Advanced", page_icon="🌸", layout="wide")
 
-# --- 1. GOOGLE SHEETS CONNECTION ---
+# --- 2. GOOGLE SHEETS CONNECTION ---
+SHEET_NAME = "wellness_database"
+
 def get_sheet_connection():
-    """Connects to Google Sheets using your Secrets."""
-    # Define what the bot is allowed to do
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-    
-    # Connect using the secret JSON you put in the dashboard
     creds = ServiceAccountCredentials.from_json_keyfile_dict(dict(st.secrets["service_account"]), scope)
     client = gspread.authorize(creds)
-    
-    # Open the specific sheet
-    sheet = client.open(SHEET_NAME).sheet1
-    return sheet
+    return client.open(SHEET_NAME).sheet1
 
-# --- 2. SECURE LOGIN SYSTEM ---
-def check_password():
-    """Returns True if the user is logged in via Streamlit Secrets."""
+def format_log_to_string(log_list, type="food"):
+    """Converts a list of dictionaries into a readable string for Excel"""
+    if not log_list:
+        return "None"
     
-    # Initialize the "logged_in" state if it doesn't exist
+    text_summary = []
+    for item in log_list:
+        if type == "food":
+            # Example: "Breakfast: Nasi Lemak (x1.0)"
+            text_summary.append(f"{item['Meal']}: {item['Food']} (x{item['Qty']})")
+        else:
+            # Example: "Jogging (60.0 mins)"
+            text_summary.append(f"{item['Activity']} ({item['Duration']} mins)")
+            
+    return ", ".join(text_summary)
+
+def save_daily_summary(food_log, exercise_log, net_calories):
+    """Saves the detailed logs to Google Sheets"""
+    try:
+        sheet = get_sheet_connection()
+        
+        # 1. Convert the lists to readable strings
+        food_str = format_log_to_string(food_log, type="food")
+        exercise_str = format_log_to_string(exercise_log, type="exercise")
+        
+        # 2. Create the row: Date, Food Detail, Exercise Detail, Net Cals, Username
+        new_row = [
+            str(date.today()), 
+            food_str, 
+            exercise_str, 
+            net_calories, 
+            st.session_state["username"]
+        ]
+        
+        sheet.append_row(new_row)
+        return True
+    except Exception as e:
+        st.error(f"Error saving to cloud: {e}")
+        return False
+
+# --- 3. SECURE LOGIN SYSTEM ---
+def check_password():
     if "logged_in" not in st.session_state:
         st.session_state["logged_in"] = False
-        st.session_state["username"] = ""
 
-    # If already logged in, we are good to go
     if st.session_state["logged_in"]:
         return True
 
-    # Show the Login Box
-    st.header("🔒 Client Login")
-    username_input = st.text_input("Username")
-    password_input = st.text_input("Password", type="password")
+    # Login Design
+    st.markdown("<h1 style='text-align: center; color: #FF69B4;'>🌸 May Bloom Login</h1>", unsafe_allow_html=True)
     
-    if st.button("Log In"):
-        # This looks at your SECRETS dashboard, NOT any hardcoded list
-        if username_input in st.secrets["passwords"] and \
-           password_input == st.secrets["passwords"][username_input]:
-            
-            st.session_state["logged_in"] = True
-            st.session_state["username"] = username_input
-            st.rerun() # Refresh to show the app
-        else:
-            st.error("Incorrect username or password.")
-            
+    col1, col2, col3 = st.columns([1,2,1])
+    with col2:
+        st.info("Please sign in to access your tracker.")
+        username = st.text_input("Username", key="login_user")
+        password = st.text_input("Password", type="password", key="login_pass")
+        
+        if st.button("🌸 Log In", key="login_btn", use_container_width=True):
+            if username in st.secrets["passwords"] and password == st.secrets["passwords"][username]:
+                st.session_state["logged_in"] = True
+                st.session_state["username"] = username
+                st.rerun()
+            else:
+                st.error("Incorrect username or password.")
     return False
 
-# --- 3. DATA FUNCTIONS ---
-def load_data():
-    """Fetch all data from Google Sheet"""
-    sheet = get_sheet_connection()
-    data = sheet.get_all_records()
-    df = pd.DataFrame(data)
-    
-    # If the sheet is empty, create a blank dataframe with columns
-    if df.empty:
-        return pd.DataFrame(columns=["Date", "Mood", "Steps", "Notes", "username"])
-    return df
-
-def save_entry(date, mood, steps, notes):
-    """Save new row to Google Sheet"""
-    sheet = get_sheet_connection()
-    # Create the row data. Order matters! Matches headers A, B, C, D, E
-    new_row = [str(date), mood, steps, notes, st.session_state["username"]]
-    sheet.append_row(new_row)
-
-# ==========================================
-# MAIN APP EXECUTION starts here
-# ==========================================
-
-# A. CHECK LOGIN
-# If this returns False, the app stops here. It will not run the code below.
+# 🛑 BLOCK APP IF NOT LOGGED IN
 if not check_password():
     st.stop()
 
-# B. SIDEBAR LOGOUT
-with st.sidebar:
-    st.write(f"👤 Logged in as: **{st.session_state['username']}**")
-    if st.button("Log Out"):
-        st.session_state["logged_in"] = False
-        st.rerun()
-
-# C. MAIN APP CONTENT
-try:
-    # Load data from Google Sheets
-    with st.spinner('Loading data...'):
-        master_df = load_data()
-        
-    # FILTER: Only show data for the currently logged-in user
-    user_data = master_df[master_df["username"] == st.session_state["username"]]
-
-    st.title(f"🌸 Welcome, {st.session_state['username'].title()}!")
-
-    tab1, tab2 = st.tabs(["📝 Add Daily Log", "📊 My Progress"])
-
-    # Tab 1: Input Form
-    with tab1:
-        with st.form("entry_form"):
-            st.subheader("How are you today?")
-            date = st.date_input("Date")
-            mood = st.selectbox("Mood", ["Happy", "Neutral", "Tired", "Stressed", "Energetic"])
-            steps = st.number_input("Steps", step=100)
-            notes = st.text_area("Notes")
-            
-            if st.form_submit_button("Save Entry"):
-                save_entry(date, mood, steps, notes)
-                st.success("✅ Saved to Google Sheet!")
-                st.rerun()
-
-    # Tab 2: View History
-    with tab2:
-        if user_data.empty:
-            st.info("No logs found yet. Start tracking!")
-        else:
-            st.metric("Total Logs", len(user_data))
-            st.line_chart(user_data, x="Date", y="Steps")
-            # Don't show the username column to the user (it's redundant)
-            st.dataframe(user_data.drop(columns=["username"]))
-
-except Exception as e:
-    st.error(f"⚠️ Error connecting to Google Sheets: {e}")
-    st.info("Check that you shared the Google Sheet with the bot email inside your JSON file.")
-
 # ==========================================
-# YOUR MAIN APP CODE GOES HERE
+# PART 4: YOUR ORIGINAL "MAY BLOOM" APP
 # ==========================================
 
-st.sidebar.button("Log Out", on_click=lambda: st.session_state.update(logged_in=False))
-
-# --- APP CONFIGURATION ---
-st.set_page_config(page_title="May Bloom Advanced", page_icon="🌸", layout="wide")
-
-# --- CUSTOM CSS FOR BRANDING ---
+# --- CUSTOM CSS ---
 st.markdown("""
 <style>
     [data-testid="stMetric"] {
@@ -154,13 +107,13 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- INITIALIZE SESSION STATES ---
+# --- INITIALIZE STATES ---
 if 'food_log' not in st.session_state:
     st.session_state.food_log = []
 if 'exercise_log' not in st.session_state:
     st.session_state.exercise_log = []
 
-# --- PART 1: COMPLETE DATABASES (Your Full List) ---
+# --- DATABASES ---
 food_database = {
     # --- CARBOHYDRATES ---
     "Rice (1/2 cup)": {"Cals": 75, "Prot": 2, "Carbs": 15, "Fat": 0},
@@ -175,7 +128,6 @@ food_database = {
     "Bun (1 small plain)": {"Cals": 75, "Prot": 2, "Carbs": 15, "Fat": 2},
     "Spaghetti (1/2 cup)": {"Cals": 75, "Prot": 2, "Carbs": 15, "Fat": 1},
     "Baked beans,canned/ Lentils (1/3 cup)": {"Cals": 75, "Prot": 2, "Carbs": 15, "Fat": 1},
-
     # --- FRUITS ---
     "Apple (1 small)": {"Cals": 60, "Prot": 0, "Carbs": 15, "Fat": 0},
     "Orange (1 small)": {"Cals": 60, "Prot": 0, "Carbs": 15, "Fat": 0},
@@ -191,14 +143,12 @@ food_database = {
     "Banana (1 small)": {"Cals": 60, "Prot": 0, "Carbs": 15, "Fat": 0},
     "Papaya (1 slice)": {"Cals": 60, "Prot": 0, "Carbs": 15, "Fat": 0},
     "Watermelon (1 slice)": {"Cals": 60, "Prot": 0, "Carbs": 15, "Fat": 0},
-
     # --- VEGETABLES ---
     "Ulam (Cucumber/Raw Greens)":   {"Cals": 0,  "Prot": 0,  "Carbs": 0,  "Fat": 0},
     "Bayam Soup (Spinach)":         {"Cals": 45,  "Prot": 0,  "Carbs": 0,  "Fat": 5},
     "Sawi / Choy Sum (Blanched)":   {"Cals": 0,  "Prot": 0,  "Carbs": 0,  "Fat": 0},
     "Steamed Broccoli/ cauliflower": {"Cals": 0,  "Prot": 0,  "Carbs": 0,  "Fat": 0},
     "Stir fry vegetables":          {"Cals": 45,  "Prot": 0,  "Carbs": 0,  "Fat": 5},
-    
     # --- PROTEINS ---
     "Chicken Drumstick (1 piece)": {"Cals": 130, "Prot": 14, "Carbs": 0, "Fat": 8},
     "Meat / Beef / Mutton (Lean - 2 matchbox size)": {"Cals": 130, "Prot": 14, "Carbs": 0, "Fat": 8},
@@ -207,13 +157,11 @@ food_database = {
     "Fish (1 medium piece)": {"Cals": 70, "Prot": 14, "Carbs": 0, "Fat": 2},
     "Taukua (1 piece)": {"Cals": 130, "Prot": 14, "Carbs": 0, "Fat": 8},
     "Ikan Bilis (2 tbsp)": {"Cals": 65, "Prot": 7, "Carbs": 0, "Fat": 2},
-    
-    # --- DAIRY / YOGURT ---
+    # --- DAIRY ---
     "Yogurt (Natural - 1 cup)": {"Cals": 100, "Prot": 8, "Carbs": 12, "Fat": 2},
     "Low Fat Milk (1 glass)": {"Cals": 125, "Prot": 8, "Carbs": 12, "Fat": 5},
     "Full Cream Milk (1 glass)": {"Cals": 150, "Prot": 8, "Carbs": 10, "Fat": 9},
     "Skim Milk (1 glass)": {"Cals": 90, "Prot": 8, "Carbs": 15, "Fat": 0},
-    
     # --- FATS ---
     "Cooking Oil (1 tsp)": {"Cals": 45, "Prot": 0, "Carbs": 0, "Fat": 5},
     "Butter / Margarine / Mayonnaise (1 tsp)": {"Cals": 45, "Prot": 0, "Carbs": 0, "Fat": 5},
@@ -222,8 +170,7 @@ food_database = {
     "Almond/ Cashew nut (6 whole)": {"Cals": 45, "Prot": 0, "Carbs": 0, "Fat": 5},
     "Sesame seed (1 level tablespoon)": {"Cals": 45, "Prot": 0, "Carbs": 0, "Fat": 5},
     "Coconut milk (santan) (2 level tablespoons)": {"Cals": 45, "Prot": 0, "Carbs": 0, "Fat": 5},
-
-    # --- LOCAL FAVORITES (MEALS) ---
+    # --- LOCAL FAVORITES ---
     "Nasi Lemak (Standard Hawker)": {"Cals": 440, "Prot": 11, "Carbs": 30, "Fat": 25},
     "Chicken Rice (Roasted - 1 plate)": {"Cals": 600, "Prot": 25, "Carbs": 60, "Fat": 28},
     "Mee Goreng / Fried Mee (1 plate)": {"Cals": 500, "Prot": 15, "Carbs": 60, "Fat": 22},
@@ -234,8 +181,7 @@ food_database = {
     "Tosai (1 piece)": {"Cals": 200, "Prot": 4, "Carbs": 35, "Fat": 4},
     "Sandwich (Egg Mayo - 2 slices)": {"Cals": 300, "Prot": 10, "Carbs": 30, "Fat": 15},
     "Satay (Chicken - 5 sticks)": {"Cals": 185, "Prot": 15, "Carbs": 5, "Fat": 12},
-    
-    # --- LOCAL DRINKS ---
+    # --- DRINKS ---
     "Teh Tarik (1 glass)": {"Cals": 180, "Prot": 4, "Carbs": 25, "Fat": 6},
     "Kopi O (Black with Sugar)": {"Cals": 60, "Prot": 0, "Carbs": 15, "Fat": 0},
     "Kopi Susu (Coffee with Milk)": {"Cals": 140, "Prot": 3, "Carbs": 20, "Fat": 5},
@@ -245,64 +191,53 @@ food_database = {
 }
 
 exercise_database = {
-    # High Intensity
-    "Zumba / Aerobics": 250,
-    "Pound (Cardio Drumming)": 240,   
-    "Jogging": 240,
-    "Swimming (Laps)": 230,
-    "Badminton (Competitive)": 220,
-    "Cycling": 200,
-
-    # Moderate Intensity
-    "Badminton / Pickleball (Casual)": 150, 
-    "Walking (Brisk)": 130,
-    "Gardening": 140,
-
-    # Low Intensity / Strength
-    "Yoga": 100,                      
-    "Pilates": 110,                    
-    "House Chores": 90,
+    # High
+    "Zumba / Aerobics": 250, "Pound (Cardio Drumming)": 240, "Jogging": 240,
+    "Swimming (Laps)": 230, "Badminton (Competitive)": 220, "Cycling": 200,
+    # Moderate
+    "Badminton / Pickleball (Casual)": 150, "Walking (Brisk)": 130, "Gardening": 140,
+    # Low
+    "Yoga": 100, "Pilates": 110, "House Chores": 90,
 }
 
-# --- PART 2: SIDEBAR (PROFILE) ---
+# --- SIDEBAR ---
 with st.sidebar:
     st.image("https://cdn-icons-png.flaticon.com/512/3050/3050484.png", width=80)
-    st.header("👤 Client Profile")
+    st.header(f"👤 {st.session_state['username'].title()}")
     
     height_cm = st.number_input("Height (cm)", 100.0, 200.0, 160.0)
     weight_kg = st.number_input("Weight (kg)", 30.0, 200.0, 70.0)
     activity = st.selectbox("Activity Level", ["Sedentary (x25)", "Active (x30)"])
-    
     st.divider()
     
-    # CALCULATE LOGIC (Advanced BMI & Adjusted Weight)
+    # BMI LOGIC
     height_m = height_cm / 100
     bmi = weight_kg / (height_m ** 2)
     
     if bmi < 18.5:
-        status = "Underweight"
-        st.info(f"BMI: {bmi:.1f} ({status})")
+        st.info(f"BMI: {bmi:.1f} (Underweight)")
         calc_weight = weight_kg
     elif 18.5 <= bmi < 23:
-        status = "Normal"
-        st.success(f"BMI: {bmi:.1f} ({status})")
+        st.success(f"BMI: {bmi:.1f} (Normal)")
         calc_weight = weight_kg
     elif 23 <= bmi < 25:
-        status = "Overweight"
-        st.warning(f"BMI: {bmi:.1f} ({status})")
+        st.warning(f"BMI: {bmi:.1f} (Overweight)")
         calc_weight = weight_kg
     else:
-        status = "Obese"
-        st.error(f"BMI: {bmi:.1f} ({status})")
+        st.error(f"BMI: {bmi:.1f} (Obese)")
         ideal_weight = 22 * (height_m ** 2)
         adj_weight = ideal_weight + 0.25 * (weight_kg - ideal_weight)
         calc_weight = adj_weight
-        st.caption(f"⚠️ Using Adjusted Weight: {adj_weight:.1f}kg")
+        st.caption(f"⚠️ Adjusted Weight: {adj_weight:.1f}kg")
 
     daily_needs = calc_weight * (25 if "Sedentary" in activity else 30)
     st.metric("🔥 Daily Target", f"{int(daily_needs)} kcal")
+    
+    if st.button("Log Out"):
+        st.session_state["logged_in"] = False
+        st.rerun()
 
-# --- PART 3: MAIN DASHBOARD ---
+# --- MAIN DASHBOARD ---
 st.title("🌸 May Bloom Lifestyle Tracker")
 
 # Calculate Totals
@@ -321,23 +256,29 @@ else:
 net_calories = total_intake - total_burned
 remaining = daily_needs - net_calories
 
-# VISUAL DASHBOARD
 col1, col2, col3 = st.columns(3)
 col1.metric("🍽️ Food Intake", f"{int(total_intake)} kcal")
 col2.metric("🔥 Exercise Burn", f"-{int(total_burned)} kcal")
 col3.metric("⚖️ Net Calories", f"{int(net_calories)} kcal", delta=f"{int(remaining)} left")
 
-# PROGRESS BAR
 st.write("Daily Energy Progress:")
 progress = min(max(net_calories / daily_needs, 0.0), 1.0)
 st.progress(progress)
 
 if remaining < 0:
-    st.error(f"⚠️ You are over your budget by {abs(int(remaining))} kcal!")
+    st.error(f"⚠️ Over budget by {abs(int(remaining))} kcal!")
 else:
-    st.info(f"✅ You have **{int(remaining)} kcal** remaining.")
+    st.info(f"✅ {int(remaining)} kcal remaining.")
 
-# --- PART 4: LOGGING TABS ---
+# --- SAVE TO CLOUD BUTTON ---
+st.markdown("---")
+# We pass the full lists (session state) to the save function
+if st.button("☁️ Save Daily Summary to Cloud", use_container_width=True):
+    if save_daily_summary(st.session_state.food_log, st.session_state.exercise_log, net_calories):
+        st.success("Daily summary saved to Google Sheets!")
+        st.balloons()
+
+# --- TABS ---
 st.divider()
 tab1, tab2 = st.tabs(["🍽️ Food Log", "🏃‍♀️ Exercise Log"])
 
@@ -348,7 +289,6 @@ with tab1:
     with c2:
         food = st.selectbox("Food Item", list(food_database.keys()))
     with c3:
-        # Using Dropdown for cleaner mobile experience
         qty = st.selectbox("Serving", [0.5, 1.0, 1.5, 2.0, 2.5, 3.0], index=1)
         
     if st.button("Add Meal ➕", use_container_width=True):
@@ -359,7 +299,6 @@ with tab1:
             "Carbs": food_database[food]["Carbs"] * qty,
             "Fat": food_database[food]["Fat"] * qty
         })
-        st.success(f"Added {food}")
         st.rerun()
 
     if st.session_state.food_log:
@@ -381,7 +320,6 @@ with tab2:
             "Duration": ex_dur * 30, 
             "Calories Burned": exercise_database[ex_name] * ex_dur
         })
-        st.success(f"Added {ex_name}")
         st.rerun()
         
     if st.session_state.exercise_log:
