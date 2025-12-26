@@ -26,12 +26,15 @@ def format_log_to_string(log_list, type="food"):
             text_summary.append(f"{item['Activity']} ({item['Duration']} mins)")
     return ", ".join(text_summary)
 
-def save_daily_summary(food_log, exercise_log, net_calories):
+# UPDATED: Now accepts 'selected_date'
+def save_daily_summary(selected_date, food_log, exercise_log, net_calories):
     try:
         sheet = get_sheet_connection()
         food_str = format_log_to_string(food_log, type="food")
         exercise_str = format_log_to_string(exercise_log, type="exercise")
-        new_row = [str(date.today()), food_str, exercise_str, net_calories, st.session_state["username"]]
+        
+        # Use str(selected_date) to save the date the user picked
+        new_row = [str(selected_date), food_str, exercise_str, net_calories, st.session_state["username"]]
         sheet.append_row(new_row)
         return True
     except Exception as e:
@@ -82,36 +85,25 @@ if st.session_state["username"] == "admin":
         elif "username" not in df_master.columns:
             st.error("❌ Error: Column 'username' not found.")
             st.info("Please go to your Google Sheet and ensure Cell E1 is named exactly: username")
-            st.dataframe(df_master) # Show what IS there so you can debug
+            st.dataframe(df_master) 
         else:
-            # Metrics
             col1, col2, col3 = st.columns(3)
             col1.metric("Total Entries", len(df_master))
             col2.metric("Total Clients", df_master['username'].nunique())
             col3.metric("Latest Entry", df_master.iloc[-1]['Date'] if 'Date' in df_master.columns else "N/A")
             
-            # Show Raw Data
             st.subheader("📋 Master Database")
             st.dataframe(df_master, use_container_width=True)
             
-            # Filter by Client
             st.subheader("🔍 Inspect Client")
             client_list = df_master['username'].unique()
             selected_client = st.selectbox("Select Client to View", client_list)
-            
             client_data = df_master[df_master['username'] == selected_client]
             st.dataframe(client_data)
             
-            # Download Button
             st.subheader("📥 Export Data")
             csv = df_master.to_csv(index=False).encode('utf-8')
-            st.download_button(
-                "Download Master CSV",
-                csv,
-                "wellness_master_data.csv",
-                "text/csv",
-                key='download-csv'
-            )
+            st.download_button("Download Master CSV", csv, "wellness_master_data.csv", "text/csv", key='download-csv')
             
     except Exception as e:
         st.error(f"System Error: {e}")
@@ -119,8 +111,6 @@ if st.session_state["username"] == "admin":
     if st.button("Log Out Admin"):
         st.session_state["logged_in"] = False
         st.rerun()
-        
-    # STOP here so admin doesn't see the normal tracker
     st.stop() 
 
 # ==========================================
@@ -254,6 +244,10 @@ with st.sidebar:
 # --- MAIN DASHBOARD ---
 st.title("🌸 May Bloom Lifestyle Tracker")
 
+# --- UPDATED: Date Picker for Backdating ---
+entry_date = st.date_input("📅 Date of Entry", date.today())
+# -------------------------------------------
+
 # Calculate Totals
 if st.session_state.food_log:
     f_df = pd.DataFrame(st.session_state.food_log)
@@ -287,8 +281,9 @@ else:
 # --- SAVE TO CLOUD BUTTON ---
 st.markdown("---")
 if st.button("☁️ Save Daily Summary to Cloud", use_container_width=True):
-    if save_daily_summary(st.session_state.food_log, st.session_state.exercise_log, net_calories):
-        st.success("Daily summary saved to Google Sheets!")
+    # Pass 'entry_date' to the save function
+    if save_daily_summary(entry_date, st.session_state.food_log, st.session_state.exercise_log, net_calories):
+        st.success(f"Daily summary for {entry_date} saved to Google Sheets!")
         st.balloons()
 
 # --- TABS ---
