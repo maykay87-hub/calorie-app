@@ -268,7 +268,7 @@ if st.button("☁️ Save Daily Summary to Cloud", use_container_width=True):
 
 # --- TABS ---
 st.divider()
-tab1, tab2 = st.tabs(["🍽️ Food Log", "🏃‍♀️ Exercise Log"])
+tab1, tab2, tab3 = st.tabs(["🍽️ Food Log", "🏃‍♀️ Exercise Log", "📅 History"])
 
 with tab1:
     c1, c2, c3 = st.columns([2,2,1])
@@ -333,3 +333,38 @@ with tab2:
             if st.button("Clear All Exercise 🗑️", use_container_width=True):
                 st.session_state.exercise_log = []
                 st.rerun()
+              
+with tab3:
+    st.header("📜 Your Wellness History")
+    
+    # 1. Load data from Google Sheets
+    try:
+        sheet = get_sheet_connection()
+        data = sheet.get_all_records()
+        df_history = pd.DataFrame(data)
+        
+        if df_history.empty:
+            st.info("No history found yet. Save your first entry!")
+        else:
+            # 2. Filter for the logged-in user
+            my_history = df_history[df_history["username"] == st.session_state["username"]]
+            
+            if my_history.empty:
+                st.warning("No records found for your username.")
+            else:
+                # 3. Show the Data
+                st.dataframe(my_history.drop(columns=["username"]), use_container_width=True)
+                
+                # 4. Chart: Net Calories over time
+                st.subheader("Your Progress Trend")
+                st.line_chart(my_history, x="Date", y="Net_Calories")
+                
+                # 5. Download Button
+                st.download_button(
+                    label="📥 Download History as CSV",
+                    data=my_history.to_csv(index=False).encode('utf-8'),
+                    file_name='my_wellness_history.csv',
+                    mime='text/csv',
+                )
+    except Exception as e:
+        st.error(f"Could not load history: {e}")
