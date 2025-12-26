@@ -65,9 +65,25 @@ USERS = {
     "admin": "adminpass"
 }
 
-def check_login(username, password):
-    if username in USERS and USERS[username] == password:
+def check_password():
+    if "logged_in" not in st.session_state:
+        st.session_state["logged_in"] = False
+
+    if st.session_state["logged_in"]:
         return True
+
+    st.header("🔒 Client Login")
+    username = st.text_input("Username")
+    password = st.text_input("Password", type="password")
+    
+    if st.button("Log In"):
+        # This specific line tells the app to check the SECRETS, not the code
+        if username in st.secrets["passwords"] and password == st.secrets["passwords"][username]:
+            st.session_state["logged_in"] = True
+            st.session_state["username"] = username
+            st.rerun()
+        else:
+            st.error("Incorrect username or password.")
     return False
 
 # 2. Check if user is already logged in
