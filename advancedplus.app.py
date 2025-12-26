@@ -17,34 +17,21 @@ def get_sheet_connection():
     return client.open(SHEET_NAME).sheet1
 
 def format_log_to_string(log_list, type="food"):
-    """Converts a list of dictionaries into a readable string for Excel"""
-    if not log_list:
-        return "None"
-    
+    if not log_list: return "None"
     text_summary = []
     for item in log_list:
         if type == "food":
             text_summary.append(f"{item['Meal']}: {item['Food']} (x{item['Qty']})")
         else:
             text_summary.append(f"{item['Activity']} ({item['Duration']} mins)")
-            
     return ", ".join(text_summary)
 
 def save_daily_summary(food_log, exercise_log, net_calories):
-    """Saves the detailed logs to Google Sheets"""
     try:
         sheet = get_sheet_connection()
         food_str = format_log_to_string(food_log, type="food")
         exercise_str = format_log_to_string(exercise_log, type="exercise")
-        
-        new_row = [
-            str(date.today()), 
-            food_str, 
-            exercise_str, 
-            net_calories, 
-            st.session_state["username"]
-        ]
-        
+        new_row = [str(date.today()), food_str, exercise_str, net_calories, st.session_state["username"]]
         sheet.append_row(new_row)
         return True
     except Exception as e:
@@ -60,7 +47,6 @@ def check_password():
         return True
 
     st.markdown("<h1 style='text-align: center; color: #FF69B4;'>🌸 May Bloom Login</h1>", unsafe_allow_html=True)
-    
     col1, col2, col3 = st.columns([1,2,1])
     with col2:
         st.info("Please sign in to access your tracker.")
@@ -80,35 +66,77 @@ if not check_password():
     st.stop()
 
 # ==========================================
-# PART 4: YOUR ORIGINAL "MAY BLOOM" APP
+# PART 4: ADMIN DASHBOARD (Only for you!)
+# ==========================================
+if st.session_state["username"] == "admin":
+    st.title("👑 Admin Dashboard")
+    st.success("Welcome, Coach! Here is the master view of all client data.")
+    
+    try:
+        sheet = get_sheet_connection()
+        data = sheet.get_all_records()
+        df_master = pd.DataFrame(data)
+        
+        if df_master.empty:
+            st.warning("No data found in Google Sheet.")
+        else:
+            # Metrics
+            col1, col2, col3 = st.columns(3)
+            col1.metric("Total Entries", len(df_master))
+            col2.metric("Total Clients", df_master['username'].nunique())
+            col3.metric("Latest Entry", df_master.iloc[-1]['Date'] if not df_master.empty else "N/A")
+            
+            # Show Raw Data
+            st.subheader("📋 Master Database")
+            st.dataframe(df_master, use_container_width=True)
+            
+            # Filter by Client
+            st.subheader("🔍 Inspect Client")
+            client_list = df_master['username'].unique()
+            selected_client = st.selectbox("Select Client to View", client_list)
+            
+            client_data = df_master[df_master['username'] == selected_client]
+            st.dataframe(client_data)
+            
+            # Download Button
+            st.subheader("📥 Export Data")
+            csv = df_master.to_csv(index=False).encode('utf-8')
+            st.download_button(
+                "Download Master CSV",
+                csv,
+                "wellness_master_data.csv",
+                "text/csv",
+                key='download-csv'
+            )
+            
+    except Exception as e:
+        st.error(f"Error loading admin data: {e}")
+        
+    if st.button("Log Out Admin"):
+        st.session_state["logged_in"] = False
+        st.rerun()
+        
+    # STOP here so admin doesn't see the normal tracker
+    st.stop() 
+
+# ==========================================
+# PART 5: REGULAR CLIENT APP (Your Original Code)
 # ==========================================
 
 # --- CUSTOM CSS ---
 st.markdown("""
 <style>
-    [data-testid="stMetric"] {
-        background-color: #FFF0F5;
-        border-radius: 10px;
-        padding: 10px;
-        border: 1px solid #FFB6C1;
-    }
-    div.stButton > button {
-        background-color: #FFB6C1;
-        color: white;
-        border: none;
-    }
+    [data-testid="stMetric"] { background-color: #FFF0F5; border-radius: 10px; padding: 10px; border: 1px solid #FFB6C1; }
+    div.stButton > button { background-color: #FFB6C1; color: white; border: none; }
 </style>
 """, unsafe_allow_html=True)
 
 # --- INITIALIZE STATES ---
-if 'food_log' not in st.session_state:
-    st.session_state.food_log = []
-if 'exercise_log' not in st.session_state:
-    st.session_state.exercise_log = []
+if 'food_log' not in st.session_state: st.session_state.food_log = []
+if 'exercise_log' not in st.session_state: st.session_state.exercise_log = []
 
 # --- DATABASES ---
 food_database = {
-    # --- CARBOHYDRATES ---
     "Rice (1/2 cup)": {"Cals": 75, "Prot": 2, "Carbs": 15, "Fat": 0},
     "Whole Meal Bread (1 slice)": {"Cals": 75, "Prot": 2, "Carbs": 15, "Fat": 1},
     "Oats (3 tablespoons)": {"Cals": 75, "Prot": 2, "Carbs": 15, "Fat": 2},
@@ -121,7 +149,6 @@ food_database = {
     "Bun (1 small plain)": {"Cals": 75, "Prot": 2, "Carbs": 15, "Fat": 2},
     "Spaghetti (1/2 cup)": {"Cals": 75, "Prot": 2, "Carbs": 15, "Fat": 1},
     "Baked beans,canned/ Lentils (1/3 cup)": {"Cals": 75, "Prot": 2, "Carbs": 15, "Fat": 1},
-    # --- FRUITS ---
     "Apple (1 small)": {"Cals": 60, "Prot": 0, "Carbs": 15, "Fat": 0},
     "Orange (1 small)": {"Cals": 60, "Prot": 0, "Carbs": 15, "Fat": 0},
     "Pear (1/2 medium)": {"Cals": 60, "Prot": 0, "Carbs": 15, "Fat": 0},
@@ -136,13 +163,11 @@ food_database = {
     "Banana (1 small)": {"Cals": 60, "Prot": 0, "Carbs": 15, "Fat": 0},
     "Papaya (1 slice)": {"Cals": 60, "Prot": 0, "Carbs": 15, "Fat": 0},
     "Watermelon (1 slice)": {"Cals": 60, "Prot": 0, "Carbs": 15, "Fat": 0},
-    # --- VEGETABLES ---
     "Ulam (Cucumber/Raw Greens)":   {"Cals": 0,  "Prot": 0,  "Carbs": 0,  "Fat": 0},
     "Bayam Soup (Spinach)":         {"Cals": 45,  "Prot": 0,  "Carbs": 0,  "Fat": 5},
     "Sawi / Choy Sum (Blanched)":   {"Cals": 0,  "Prot": 0,  "Carbs": 0,  "Fat": 0},
     "Steamed Broccoli/ cauliflower": {"Cals": 0,  "Prot": 0,  "Carbs": 0,  "Fat": 0},
     "Stir fry vegetables":          {"Cals": 45,  "Prot": 0,  "Carbs": 0,  "Fat": 5},
-    # --- PROTEINS ---
     "Chicken Drumstick (1 piece)": {"Cals": 130, "Prot": 14, "Carbs": 0, "Fat": 8},
     "Meat / Beef / Mutton (Lean - 2 matchbox size)": {"Cals": 130, "Prot": 14, "Carbs": 0, "Fat": 8},
     "Prawns (6 medium)": {"Cals": 50, "Prot": 7, "Carbs": 0, "Fat": 2},
@@ -150,12 +175,10 @@ food_database = {
     "Fish (1 medium piece)": {"Cals": 70, "Prot": 14, "Carbs": 0, "Fat": 2},
     "Taukua (1 piece)": {"Cals": 130, "Prot": 14, "Carbs": 0, "Fat": 8},
     "Ikan Bilis (2 tbsp)": {"Cals": 65, "Prot": 7, "Carbs": 0, "Fat": 2},
-    # --- DAIRY ---
     "Yogurt (Natural - 1 cup)": {"Cals": 100, "Prot": 8, "Carbs": 12, "Fat": 2},
     "Low Fat Milk (1 glass)": {"Cals": 125, "Prot": 8, "Carbs": 12, "Fat": 5},
     "Full Cream Milk (1 glass)": {"Cals": 150, "Prot": 8, "Carbs": 10, "Fat": 9},
     "Skim Milk (1 glass)": {"Cals": 90, "Prot": 8, "Carbs": 15, "Fat": 0},
-    # --- FATS ---
     "Cooking Oil (1 tsp)": {"Cals": 45, "Prot": 0, "Carbs": 0, "Fat": 5},
     "Butter / Margarine / Mayonnaise (1 tsp)": {"Cals": 45, "Prot": 0, "Carbs": 0, "Fat": 5},
     "Peanut (20 small)": {"Cals": 45, "Prot": 0, "Carbs": 0, "Fat": 5},
@@ -163,7 +186,6 @@ food_database = {
     "Almond/ Cashew nut (6 whole)": {"Cals": 45, "Prot": 0, "Carbs": 0, "Fat": 5},
     "Sesame seed (1 level tablespoon)": {"Cals": 45, "Prot": 0, "Carbs": 0, "Fat": 5},
     "Coconut milk (santan) (2 level tablespoons)": {"Cals": 45, "Prot": 0, "Carbs": 0, "Fat": 5},
-    # --- LOCAL FAVORITES ---
     "Nasi Lemak (Standard Hawker)": {"Cals": 440, "Prot": 11, "Carbs": 30, "Fat": 25},
     "Chicken Rice (Roasted - 1 plate)": {"Cals": 600, "Prot": 25, "Carbs": 60, "Fat": 28},
     "Mee Goreng / Fried Mee (1 plate)": {"Cals": 500, "Prot": 15, "Carbs": 60, "Fat": 22},
@@ -174,7 +196,6 @@ food_database = {
     "Tosai (1 piece)": {"Cals": 200, "Prot": 4, "Carbs": 35, "Fat": 4},
     "Sandwich (Egg Mayo - 2 slices)": {"Cals": 300, "Prot": 10, "Carbs": 30, "Fat": 15},
     "Satay (Chicken - 5 sticks)": {"Cals": 185, "Prot": 15, "Carbs": 5, "Fat": 12},
-    # --- DRINKS ---
     "Teh Tarik (1 glass)": {"Cals": 180, "Prot": 4, "Carbs": 25, "Fat": 6},
     "Kopi O (Black with Sugar)": {"Cals": 60, "Prot": 0, "Carbs": 15, "Fat": 0},
     "Kopi Susu (Coffee with Milk)": {"Cals": 140, "Prot": 3, "Carbs": 20, "Fat": 5},
@@ -291,7 +312,6 @@ with tab1:
 
     if st.session_state.food_log:
         st.dataframe(pd.DataFrame(st.session_state.food_log), use_container_width=True)
-        # --- NEW: TOTAL CALORIES DISPLAY HERE ---
         st.info(f"🍽️ **Total Calories in this list:** {int(total_intake)} kcal")
         
         col_undo, col_clear = st.columns(2)
@@ -321,7 +341,6 @@ with tab2:
         
     if st.session_state.exercise_log:
         st.dataframe(pd.DataFrame(st.session_state.exercise_log), use_container_width=True)
-        # --- NEW: TOTAL BURN DISPLAY HERE ---
         st.info(f"🔥 **Total Calories Burned:** {int(total_burned)} kcal")
         
         col_undo, col_clear = st.columns(2)
@@ -333,11 +352,9 @@ with tab2:
             if st.button("Clear All Exercise 🗑️", use_container_width=True):
                 st.session_state.exercise_log = []
                 st.rerun()
-              
+
 with tab3:
     st.header("📜 Your Wellness History")
-    
-    # 1. Load data from Google Sheets
     try:
         sheet = get_sheet_connection()
         data = sheet.get_all_records()
@@ -345,26 +362,12 @@ with tab3:
         
         if df_history.empty:
             st.info("No history found yet. Save your first entry!")
-        else:
-            # 2. Filter for the logged-in user
+        elif "username" in df_history.columns:
             my_history = df_history[df_history["username"] == st.session_state["username"]]
-            
             if my_history.empty:
                 st.warning("No records found for your username.")
             else:
-                # 3. Show the Data
                 st.dataframe(my_history.drop(columns=["username"]), use_container_width=True)
-                
-                # 4. Chart: Net Calories over time
-                st.subheader("Your Progress Trend")
                 st.line_chart(my_history, x="Date", y="Net_Calories")
-                
-                # 5. Download Button
-                st.download_button(
-                    label="📥 Download History as CSV",
-                    data=my_history.to_csv(index=False).encode('utf-8'),
-                    file_name='my_wellness_history.csv',
-                    mime='text/csv',
-                )
     except Exception as e:
         st.error(f"Could not load history: {e}")
