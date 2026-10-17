@@ -151,11 +151,11 @@ if st.session_state["username"] == "admin":
 # --- CUSTOM CSS ---
 st.markdown("""
 <style>
-    .block-container { max-width: 960px; padding-top: 1.25rem; padding-bottom: 3rem; }
+    .block-container { max-width: 960px; padding-top: 5rem; padding-bottom: 3rem; }
     .mb-brand { display:flex; align-items:center; gap:.55rem; margin:0 0 .15rem; }
-    .mb-brand-name { font-size:1.65rem; font-weight:700; color:#49333c; line-height:1.3; }
+    .mb-brand-name { font-size:1.65rem; font-weight:700; color:var(--text-color, #49333c); line-height:1.3; }
     .mb-brand-mark { color:#a54460; font-size:1.5rem; }
-    .mb-subtitle { color:#68585f; font-size:.9rem; margin:0 0 .75rem; }
+    .mb-subtitle { color:var(--text-color, #68585f); font-size:.9rem; margin:0 0 .75rem; }
     .mb-summary { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:.55rem; margin:.2rem 0; }
     .mb-stat { margin:0; padding:.75rem .6rem; border:1px solid #edd7de; border-radius:14px; background:#fcf5f7; min-width:0; }
     .mb-stat dt { font-size:.8rem; color:#68515b; margin:0 0 .25rem; }
@@ -165,26 +165,27 @@ st.markdown("""
     [data-testid="stButton"] button,
     [data-testid="stFormSubmitButton"] button { min-height:44px; border-radius:10px; }
     [data-testid="stButton"] button[kind="primary"],
-    [data-testid="stFormSubmitButton"] button[kind="primary"] {
-        background:#9b3e59; border-color:#9b3e59; color:#fff;
+    button[data-testid="baseButton-primary"],
+    [data-testid="stFormSubmitButton"] button {
+        background:#9b3e59 !important; border-color:#9b3e59 !important; color:#fff !important;
     }
     [data-testid="stButton"] button[kind="primary"]:hover,
-    [data-testid="stFormSubmitButton"] button[kind="primary"]:hover {
-        background:#803249; border-color:#803249; color:#fff;
+    button[data-testid="baseButton-primary"]:hover,
+    [data-testid="stFormSubmitButton"] button:hover {
+        background:#803249 !important; border-color:#803249 !important; color:#fff !important;
     }
-    [data-testid="stButton"] button[kind="primary"]:disabled {
-        background:#eee5e8; border-color:#ddd0d5; color:#71636a;
+    [data-testid="stButton"] button[kind="primary"]:disabled,
+    button[data-testid="baseButton-primary"]:disabled,
+    [data-testid="stFormSubmitButton"] button:disabled {
+        background:#eee5e8 !important; border-color:#ddd0d5 !important; color:#71636a !important;
     }
     @media (max-width:640px) {
-        .block-container { padding-left:1rem; padding-right:1rem; padding-top:1rem; }
+        .block-container { padding-left:1rem; padding-right:1rem; padding-top:5rem; }
         .mb-brand-name { font-size:1.4rem; }
         [data-testid="stForm"] { padding:.8rem; }
         [data-testid="stTabs"] [role="tab"] { min-height:44px; padding-left:.4rem; padding-right:.4rem; }
     }
-    @media (prefers-color-scheme:dark) {
-        .mb-brand-name { color:#f3e4e9; }
-        .mb-subtitle { color:#d0bac3; }
-    }
+
 </style>
 """, unsafe_allow_html=True)
 
@@ -213,7 +214,7 @@ if not draft.get("loaded"):
 with st.expander("使用提示 · How to use"):
     st.write("已保存的记录会在登入后载入。修改后请保存；未保存的修改可能在离开后丢失。 Saved records load after sign-in. Save after editing; unsaved changes may be lost when you leave.")
 if draft.get("legacy"):
-    st.warning("This date has an older text summary without editable details. It is preserved unless you explicitly replace it.")
+    st.caption("此日期是旧版摘要。可查看原记录；如需重新填写，请先添加完整记录再确认替换。 Older summary: view below, or enter a complete replacement.")
     with st.expander("查看旧记录 · Previous summary"):
         summary = draft.get("summary") or {}
         st.write(f"Food: {summary.get('Food_Log', '')}")
@@ -387,7 +388,7 @@ else:
 replace_legacy = False
 if draft.get("legacy"):
     replace_legacy = st.checkbox(
-        "Replace this older summary with the food and exercise currently entered",
+        "确认用当前输入替换旧摘要 · Replace older summary",
         key=f"replace_legacy_{entry_date}",
     )
 st.session_state["replace_legacy"] = replace_legacy
