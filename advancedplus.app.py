@@ -5,6 +5,7 @@ from oauth2client.service_account import ServiceAccountCredentials
 from datetime import date
 from tracker_state import logout, select_draft
 from tracker_storage import load_day, save_day
+from profile_storage import ACTIVITIES, load_profile, save_profile
 
 # --- 1. APP CONFIGURATION ---
 st.set_page_config(page_title="May Bloom Advanced", page_icon="🌸", layout="wide")
@@ -13,7 +14,7 @@ st.set_page_config(page_title="May Bloom Advanced", page_icon="🌸", layout="wi
 # This test branch requires an explicit spreadsheet ID; never fall back to the live database.
 SPREADSHEET_ID = st.secrets["spreadsheet_id"]
 
-def get_sheet_connection(type="main"):
+def get_sheet_connection(type="main", create=False):
     """
     Connects to Google Sheets.
     type="main" -> Returns the FIRST tab (your data logs)
@@ -25,6 +26,13 @@ def get_sheet_connection(type="main"):
     
     spreadsheet = client.open_by_key(SPREADSHEET_ID)
     
+    if type == "profiles":
+        try:
+            return spreadsheet.worksheet("profiles")
+        except gspread.WorksheetNotFound:
+            if create:
+                return spreadsheet.add_worksheet(title="profiles", rows=100, cols=5)
+            return None
     if type == "feedback":
         try:
             return spreadsheet.worksheet("feedback")
@@ -317,9 +325,48 @@ with st.sidebar:
 
     st.divider()
     
-    height_cm = st.number_input("Height (cm)", 100.0, 200.0, 160.0)
-    weight_kg = st.number_input("Weight (kg)", 30.0, 200.0, 70.0)
-    activity = st.selectbox("Activity Level", ["Sedentary (x25)", "Active (x30)"])
+    st.subheader("个人资料 · Profile")
+    if st.session_state.get("profile_loaded_user") != st.session_state["username"]:
+        try:
+            saved_profile = load_profile(
+                get_sheet_connection("profiles"), st.session_state["username"]
+            )
+        except Exception:
+            st.error("暂时无法读取个人资料。请重试，避免覆盖已有资料。 Could not load your profile.")
+            if st.button("重试读取资料 · Retry profile"):
+                st.rerun()
+            st.stop()
+        initial = saved_profile or {
+            "height_cm": 160.0, "weight_kg": 70.0, "activity": ACTIVITIES[0]
+        }
+        st.session_state["profile_height_cm"] = initial["height_cm"]
+        st.session_state["profile_weight_kg"] = initial["weight_kg"]
+        st.session_state["profile_activity"] = initial["activity"]
+        st.session_state["profile_baseline"] = saved_profile
+        st.session_state["profile_loaded_user"] = st.session_state["username"]
+
+    height_cm = st.number_input("身高 Height (cm)", 100.0, 200.0, step=0.5, key="profile_height_cm")
+    weight_kg = st.number_input("体重 Weight (kg)", 30.0, 200.0, step=0.1, key="profile_weight_kg")
+    activity = st.selectbox("活动水平 Activity level", ACTIVITIES, key="profile_activity")
+    current_profile = {"height_cm": height_cm, "weight_kg": weight_kg, "activity": activity}
+    if st.button("保存个人资料 · Save profile", type="primary", use_container_width=True):
+        try:
+            stored_profile = save_profile(
+                get_sheet_connection("profiles", create=True), st.session_state["username"],
+                height_cm, weight_kg, activity,
+            )
+            st.session_state["profile_baseline"] = stored_profile
+            st.success("个人资料已保存 · Profile saved")
+        except Exception:
+            st.error("资料未能保存，请检查连接后重试。 Profile was not saved; please retry.")
+    baseline = st.session_state.get("profile_baseline")
+    if baseline is None:
+        st.caption("首次使用：请确认身高、体重和活动水平，再保存。 First visit: check the default values and save.")
+    elif current_profile != baseline:
+        st.caption("有未保存的个人资料修改。 Unsaved profile changes.")
+    else:
+        st.caption("个人资料已保存，重新登入会自动载入。 Saved profile loads after sign-in.")
+    st.caption("饮食和运动记录请使用主页面的「保存当天记录」。 Save daily food and exercise separately on the main page.")
     st.divider()
     
     height_m = height_cm / 100
