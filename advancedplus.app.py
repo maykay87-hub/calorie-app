@@ -3,6 +3,7 @@ import pandas as pd
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 from datetime import date
+from tracker_state import logout, select_draft
 
 # --- 1. APP CONFIGURATION ---
 st.set_page_config(page_title="May Bloom Advanced", page_icon="🌸", layout="wide")
@@ -109,7 +110,7 @@ if st.session_state["username"] == "admin":
 
         st.divider()
         if st.button("Log Out Admin"):
-            st.session_state["logged_in"] = False
+            logout(st.session_state)
             st.rerun()
     # --- ADMIN SIDEBAR END ---
 
@@ -151,9 +152,11 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- INITIALIZE STATES ---
-if 'food_log' not in st.session_state: st.session_state.food_log = []
-if 'exercise_log' not in st.session_state: st.session_state.exercise_log = []
+# --- DAILY DRAFT ---
+st.title("🌸 May Bloom Lifestyle Tracker")
+entry_date = st.date_input("📅 Date of Entry", date.today())
+select_draft(st.session_state, st.session_state["username"], entry_date)
+st.caption("Drafts stay available while this session is open. Save to Cloud before closing or refreshing the page.")
 
 # --- DATABASES ---
 food_database = {
@@ -282,14 +285,10 @@ with st.sidebar:
     st.metric("🔥 Daily Target", f"{int(daily_needs)} kcal")
     
     if st.button("Log Out"):
-        st.session_state["logged_in"] = False
+        logout(st.session_state)
         st.rerun()
 
 # --- MAIN DASHBOARD ---
-st.title("🌸 May Bloom Lifestyle Tracker")
-
-entry_date = st.date_input("📅 Date of Entry", date.today())
-
 # Calculate Totals
 if st.session_state.food_log:
     f_df = pd.DataFrame(st.session_state.food_log)
@@ -332,15 +331,13 @@ st.divider()
 tab1, tab2, tab3 = st.tabs(["🍽️ Food Log", "🏃‍♀️ Exercise Log", "📅 History"])
 
 with tab1:
-    c1, c2, c3 = st.columns([2,2,1])
-    with c1:
+    with st.form("add_food_form", clear_on_submit=False):
         meal = st.selectbox("Meal Type", ["Breakfast", "Lunch", "Dinner", "Snack"])
-    with c2:
         food = st.selectbox("Food Item", list(food_database.keys()))
-    with c3:
         qty = st.selectbox("Serving", [0.5, 1.0, 1.5, 2.0, 2.5, 3.0], index=1)
+        add_meal = st.form_submit_button("Add Meal ➕", use_container_width=True)
         
-    if st.button("Add Meal ➕", use_container_width=True):
+    if add_meal:
         st.session_state.food_log.append({
             "Meal": meal, "Food": food, "Qty": qty, 
             "Calories": food_database[food]["Cals"] * qty,
@@ -361,21 +358,20 @@ with tab1:
                 st.rerun()
         with col_clear:
             if st.button("Clear All Food 🗑️", use_container_width=True):
-                st.session_state.food_log = []
+                st.session_state.food_log.clear()
                 st.rerun()
 
 with tab2:
-    c1, c2 = st.columns([3,1])
-    with c1:
+    with st.form("add_exercise_form", clear_on_submit=False):
         ex_name = st.selectbox("Activity Type", list(exercise_database.keys()))
-    with c2:
-        ex_dur = st.selectbox("Duration (30 mins)", [0.5, 1.0, 1.5, 2.0, 2.5, 3.0], index=1)
+        ex_minutes = st.selectbox("Duration (minutes)", [15, 30, 45, 60, 75, 90], index=1)
+        add_activity = st.form_submit_button("Add Activity ➕", use_container_width=True)
 
-    if st.button("Add Activity ➕", use_container_width=True):
+    if add_activity:
         st.session_state.exercise_log.append({
             "Activity": ex_name, 
-            "Duration": ex_dur * 30, 
-            "Calories Burned": exercise_database[ex_name] * ex_dur
+            "Duration": ex_minutes,
+            "Calories Burned": exercise_database[ex_name] * ex_minutes / 30
         })
         st.rerun()
         
@@ -390,7 +386,7 @@ with tab2:
                 st.rerun()
         with col_clear:
             if st.button("Clear All Exercise 🗑️", use_container_width=True):
-                st.session_state.exercise_log = []
+                st.session_state.exercise_log.clear()
                 st.rerun()
 
 with tab3:
