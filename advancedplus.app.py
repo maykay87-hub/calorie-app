@@ -151,13 +151,50 @@ if st.session_state["username"] == "admin":
 # --- CUSTOM CSS ---
 st.markdown("""
 <style>
-    [data-testid="stMetric"] { background-color: #FFF0F5; border-radius: 10px; padding: 10px; border: 1px solid #FFB6C1; }
-    div.stButton > button { background-color: #FFB6C1; color: white; border: none; }
+    .block-container { max-width: 960px; padding-top: 1.25rem; padding-bottom: 3rem; }
+    .mb-brand { display:flex; align-items:center; gap:.55rem; margin:0 0 .15rem; }
+    .mb-brand-name { font-size:1.65rem; font-weight:700; color:#49333c; line-height:1.3; }
+    .mb-brand-mark { color:#a54460; font-size:1.5rem; }
+    .mb-subtitle { color:#68585f; font-size:.9rem; margin:0 0 .75rem; }
+    .mb-summary { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:.55rem; margin:.2rem 0; }
+    .mb-stat { margin:0; padding:.75rem .6rem; border:1px solid #edd7de; border-radius:14px; background:#fcf5f7; min-width:0; }
+    .mb-stat dt { font-size:.8rem; color:#68515b; margin:0 0 .25rem; }
+    .mb-stat dd { font-size:clamp(1.05rem,4.8vw,1.8rem); font-weight:700; color:#49333c; margin:0; overflow-wrap:anywhere; }
+    .mb-stat small { display:block; font-size:.72rem; font-weight:400; color:#68515b; margin-top:.1rem; }
+    .mb-stat-net { background:#f5e6ec; border-color:#dba6b6; }
+    [data-testid="stButton"] button,
+    [data-testid="stFormSubmitButton"] button { min-height:44px; border-radius:10px; }
+    [data-testid="stButton"] button[kind="primary"],
+    [data-testid="stFormSubmitButton"] button[kind="primary"] {
+        background:#9b3e59; border-color:#9b3e59; color:#fff;
+    }
+    [data-testid="stButton"] button[kind="primary"]:hover,
+    [data-testid="stFormSubmitButton"] button[kind="primary"]:hover {
+        background:#803249; border-color:#803249; color:#fff;
+    }
+    [data-testid="stButton"] button[kind="primary"]:disabled {
+        background:#eee5e8; border-color:#ddd0d5; color:#71636a;
+    }
+    @media (max-width:640px) {
+        .block-container { padding-left:1rem; padding-right:1rem; padding-top:1rem; }
+        .mb-brand-name { font-size:1.4rem; }
+        [data-testid="stForm"] { padding:.8rem; }
+        [data-testid="stTabs"] [role="tab"] { min-height:44px; padding-left:.4rem; padding-right:.4rem; }
+    }
+    @media (prefers-color-scheme:dark) {
+        .mb-brand-name { color:#f3e4e9; }
+        .mb-subtitle { color:#d0bac3; }
+    }
 </style>
 """, unsafe_allow_html=True)
 
 # --- DAILY DRAFT ---
-st.title("🌸 May Bloom Lifestyle Tracker")
+st.markdown(
+    '<div class="mb-brand"><span class="mb-brand-mark" aria-hidden="true">✿</span>'
+    '<span class="mb-brand-name">May Bloom</span></div>'
+    '<p class="mb-subtitle">Lifestyle Tracker · 生活记录</p>',
+    unsafe_allow_html=True,
+)
 entry_date = st.date_input("📅 Date of Entry", date.today())
 draft = select_draft(st.session_state, st.session_state["username"], entry_date)
 if not draft.get("loaded"):
@@ -173,10 +210,15 @@ if not draft.get("loaded"):
         if st.button("Retry loading records"):
             st.rerun()
         st.stop()
-st.caption("Saved records load when you sign in. Save to Cloud after editing; unsaved changes may be lost when you leave.")
+with st.expander("使用提示 · How to use"):
+    st.write("已保存的记录会在登入后载入。修改后请保存；未保存的修改可能在离开后丢失。 Saved records load after sign-in. Save after editing; unsaved changes may be lost when you leave.")
 if draft.get("legacy"):
     st.warning("This date has an older text summary without editable details. It is preserved unless you explicitly replace it.")
-    st.write(draft.get("summary"))
+    with st.expander("查看旧记录 · Previous summary"):
+        summary = draft.get("summary") or {}
+        st.write(f"Food: {summary.get('Food_Log', '')}")
+        st.write(f"Exercise: {summary.get('Exercise_Log', '')}")
+        st.write(f"Net: {summary.get('Net_Calories', '')} kcal")
 
 
 # --- DATABASES ---
@@ -326,22 +368,22 @@ else:
 net_calories = total_intake - total_burned
 remaining = daily_needs - net_calories
 
-col1, col2, col3 = st.columns(3)
-col1.metric("🍽️ Food Intake", f"{int(total_intake)} kcal")
-col2.metric("🔥 Exercise Burn", f"-{int(total_burned)} kcal")
-col3.metric("⚖️ Net Calories", f"{int(net_calories)} kcal", delta=f"{int(remaining)} left")
-
-st.write("Daily Energy Progress:")
+st.markdown(
+    f'<div class="mb-summary" role="group" aria-label="每日热量 Daily calories">'
+    f'<dl class="mb-stat"><dt>饮食 Food</dt><dd>{int(total_intake):,}<small>kcal</small></dd></dl>'
+    f'<dl class="mb-stat"><dt>运动 Exercise</dt><dd>{int(total_burned):,}<small>kcal</small></dd></dl>'
+    f'<dl class="mb-stat mb-stat-net"><dt>净值 Net</dt><dd>{int(net_calories):,}<small>kcal</small></dd></dl>'
+    f'</div>',
+    unsafe_allow_html=True,
+)
 progress = min(max(net_calories / daily_needs, 0.0), 1.0)
 st.progress(progress)
-
 if remaining < 0:
-    st.error(f"⚠️ Over budget by {abs(int(remaining))} kcal!")
+    st.caption(f"高于当前目标 Above target: {abs(int(remaining)):,} kcal")
 else:
-    st.info(f"✅ {int(remaining)} kcal remaining.")
+    st.caption(f"距当前目标 Remaining: {int(remaining):,} kcal")
 
 # --- SAVE TO CLOUD BUTTON ---
-st.markdown("---")
 replace_legacy = False
 if draft.get("legacy"):
     replace_legacy = st.checkbox(
@@ -349,22 +391,20 @@ if draft.get("legacy"):
         key=f"replace_legacy_{entry_date}",
     )
 st.session_state["replace_legacy"] = replace_legacy
-if st.button("☁️ Save Daily Summary to Cloud", use_container_width=True,
+if st.button("保存当天记录 · Save", type="primary", use_container_width=True,
              disabled=bool(draft.get("legacy")) and not replace_legacy):
     if save_daily_summary(entry_date, st.session_state.food_log, st.session_state.exercise_log, net_calories):
-        st.success(f"Daily summary for {entry_date} saved to Google Sheets!")
-        st.balloons()
+        st.success(f"已保存 Saved · {entry_date}")
 
 # --- TABS ---
-st.divider()
-tab1, tab2, tab3 = st.tabs(["🍽️ Food Log", "🏃‍♀️ Exercise Log", "📅 History"])
+tab1, tab2, tab3 = st.tabs(["饮食 Food", "运动 Exercise", "历史 History"])
 
 with tab1:
     with st.form("add_food_form", clear_on_submit=False):
         meal = st.selectbox("Meal Type", ["Breakfast", "Lunch", "Dinner", "Snack"])
         food = st.selectbox("Food Item", list(food_database.keys()))
         qty = st.selectbox("Serving", [0.5, 1.0, 1.5, 2.0, 2.5, 3.0], index=1)
-        add_meal = st.form_submit_button("Add Meal ➕", use_container_width=True)
+        add_meal = st.form_submit_button("添加饮食 · Add meal", type="primary", use_container_width=True)
         
     if add_meal:
         st.session_state.food_log.append({
@@ -378,7 +418,7 @@ with tab1:
 
     if st.session_state.food_log:
         st.dataframe(pd.DataFrame(st.session_state.food_log), use_container_width=True)
-        st.info(f"🍽️ **Total Calories in this list:** {int(total_intake)} kcal")
+        st.caption(f"饮食合计 Food total: {int(total_intake):,} kcal")
         
         col_undo, col_clear = st.columns(2)
         with col_undo:
@@ -394,7 +434,7 @@ with tab2:
     with st.form("add_exercise_form", clear_on_submit=False):
         ex_name = st.selectbox("Activity Type", list(exercise_database.keys()))
         ex_minutes = st.selectbox("Duration (minutes)", [15, 30, 45, 60, 75, 90], index=1)
-        add_activity = st.form_submit_button("Add Activity ➕", use_container_width=True)
+        add_activity = st.form_submit_button("添加运动 · Add activity", type="primary", use_container_width=True)
 
     if add_activity:
         st.session_state.exercise_log.append({
@@ -406,7 +446,7 @@ with tab2:
         
     if st.session_state.exercise_log:
         st.dataframe(pd.DataFrame(st.session_state.exercise_log), use_container_width=True)
-        st.info(f"🔥 **Total Calories Burned:** {int(total_burned)} kcal")
+        st.caption(f"运动合计 Exercise total: {int(total_burned):,} kcal")
         
         col_undo, col_clear = st.columns(2)
         with col_undo:
@@ -419,7 +459,7 @@ with tab2:
                 st.rerun()
 
 with tab3:
-    st.header("📜 Your Wellness History")
+    st.subheader("历史记录 · History")
     try:
         sheet = get_sheet_connection("main")
         data = sheet.get_all_records()
