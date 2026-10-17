@@ -7,6 +7,7 @@ from datetime import date
 from tracker_state import logout, select_draft
 from tracker_storage import load_day, save_day
 from profile_storage import ACTIVITIES, load_profile, save_profile
+from food_catalogue import ALL_FOODS, RECENT_FOODS, CATEGORIES, MEAL_LABELS, food_label, filter_foods, remember_food
 
 # --- 1. APP CONFIGURATION ---
 st.set_page_config(page_title="May Bloom Advanced", page_icon="🌸", layout="wide")
@@ -270,6 +271,10 @@ if not draft.get("loaded"):
         saved = load_day(get_sheet_connection("main"), st.session_state["username"], entry_date)
         draft["food_log"][:] = saved["food_log"]
         draft["exercise_log"][:] = saved["exercise_log"]
+        for item in saved["food_log"]:
+            st.session_state["recent_food_names"] = remember_food(
+                st.session_state.get("recent_food_names", []), item["Food"]
+            )
         draft["legacy"] = saved["legacy"]
         draft["summary"] = saved.get("summary")
         draft["loaded"] = True
@@ -473,13 +478,38 @@ if st.button("保存当天记录 · Save", type="primary", use_container_width=T
 tab1, tab2, tab3 = st.tabs(["饮食 Food", "运动 Exercise", "历史 History"])
 
 with tab1:
-    with st.form("add_food_form", clear_on_submit=False):
-        meal = st.selectbox("Meal Type", ["Breakfast", "Lunch", "Dinner", "Snack"])
-        food = st.selectbox("Food Item", list(food_database.keys()))
-        qty = st.selectbox("Serving", [0.5, 1.0, 1.5, 2.0, 2.5, 3.0], index=1)
-        add_meal = st.form_submit_button("添加饮食 · Add meal", type="primary", use_container_width=True)
+    category = st.selectbox(
+        "食物分类 · Category", [ALL_FOODS, RECENT_FOODS] + CATEGORIES, key="food_category"
+    )
+    query = st.text_input("搜索食物 · Search", placeholder="例如：饭、鸡肉、rice", key="food_search")
+    choices = filter_foods(
+        food_database, category, query, st.session_state.get("recent_food_names", [])
+    )
+    if category == RECENT_FOODS:
+        st.caption("本次登入选择或载入过的食物，最多8项。 Up to 8 foods used or loaded during this sign-in.")
+    add_meal = False
+    if choices:
+        if st.session_state.get("selected_food_id") not in choices:
+            st.session_state["selected_food_id"] = choices[0]
+        with st.form("add_food_form", clear_on_submit=False):
+            meal = st.selectbox(
+                "餐次 · Meal", list(MEAL_LABELS), format_func=MEAL_LABELS.get
+            )
+            food = st.selectbox(
+                "食物 · Food", choices, format_func=food_label, key="selected_food_id"
+            )
+            qty = st.selectbox("份数 · Servings", [0.5, 1.0, 1.5, 2.0, 2.5, 3.0], index=1)
+            st.caption("1份 = 食物名称标示的份量。 One serving follows the portion in the food name.")
+            add_meal = st.form_submit_button("添加饮食 · Add meal", type="primary", use_container_width=True)
+    elif category == RECENT_FOODS and not st.session_state.get("recent_food_names"):
+        st.info("还没有最近使用的食物，请先选其他分类添加。 No recent foods yet; choose another category to start.")
+    else:
+        st.info("没有符合的食物。请清除搜索文字或改选「全部食物」。 No matches; clear the search or select All foods.")
         
     if add_meal:
+        st.session_state["recent_food_names"] = remember_food(
+            st.session_state.get("recent_food_names", []), food
+        )
         st.session_state.food_log.append({
             "Meal": meal, "Food": food, "Qty": qty, 
             "Calories": food_database[food]["Cals"] * qty,
@@ -490,16 +520,22 @@ with tab1:
         st.rerun()
 
     if st.session_state.food_log:
-        st.dataframe(pd.DataFrame(st.session_state.food_log), use_container_width=True)
+        display_foods = pd.DataFrame(st.session_state.food_log)
+        display_foods["Food"] = display_foods["Food"].map(food_label)
+        display_foods["Meal"] = display_foods["Meal"].map(lambda value: MEAL_LABELS.get(value, value))
+        st.dataframe(display_foods.rename(columns={
+            "Meal": "餐次 Meal", "Food": "食物 Food", "Qty": "份数", "Calories": "kcal",
+            "Protein": "蛋白质 g", "Carbs": "碳水 g", "Fat": "脂肪 g",
+        }), use_container_width=True, hide_index=True)
         st.caption(f"饮食合计 Food total: {int(total_intake):,} kcal")
         
         col_undo, col_clear = st.columns(2)
         with col_undo:
-            if st.button("Undo Last Entry ↩️", use_container_width=True):
+            if st.button("撤销上一笔 · Undo", use_container_width=True):
                 st.session_state.food_log.pop()
                 st.rerun()
         with col_clear:
-            if st.button("Clear All Food 🗑️", use_container_width=True):
+            if st.button("清空当天饮食 · Clear food", use_container_width=True):
                 st.session_state.food_log.clear()
                 st.rerun()
 
