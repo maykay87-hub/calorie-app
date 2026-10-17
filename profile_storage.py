@@ -24,6 +24,11 @@ def _read(sheet):
     if sheet is None:
         return []
     rows = sheet.get_all_values()
+    # gspread represents a completely blank worksheet as [[]], not always [].
+    # Only treat the sheet as empty when every cell is empty, so existing data
+    # below a missing header is never mistaken for an unused worksheet.
+    if not any(any(cell != "" for cell in row) for row in rows):
+        return []
     if rows and rows[0] != HEADERS:
         raise ValueError("Unexpected profile columns. Existing data has not been changed.")
     return rows

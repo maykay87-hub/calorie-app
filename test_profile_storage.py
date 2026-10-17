@@ -13,6 +13,22 @@ class ProfileTests(unittest.TestCase):
         self.assertIsNone(load_profile(self.sheet, "alice"))
         self.assertEqual(self.sheet.rows, [])
 
+    def test_gspread_empty_sheet_shapes_allow_first_save_and_reload(self):
+        for rows in [[], [[]], [[""]], [["", "", ""], ["", "", ""]]]:
+            with self.subTest(rows=rows):
+                sheet = Sheet(rows)
+                self.assertIsNone(load_profile(sheet, "alice"))
+                expected = save_profile(sheet, "alice", 164, 52, ACTIVITIES[0])
+                self.assertEqual(sheet.rows[0], HEADERS)
+                self.assertEqual(load_profile(sheet, "alice"), expected)
+
+    def test_empty_header_with_nonempty_data_is_preserved(self):
+        self.sheet.rows = [[], ["alice", "164", "52", ACTIVITIES[0], ""]]
+        before = copy.deepcopy(self.sheet.rows)
+        with self.assertRaises(ValueError):
+            save_profile(self.sheet, "alice", 164, 52, ACTIVITIES[0])
+        self.assertEqual(self.sheet.rows, before)
+
     def test_new_profile_roundtrips_numeric_values_as_returned_by_sheets(self):
         expected = save_profile(self.sheet, "alice", 162.5, 58.2, ACTIVITIES[1])
         self.sheet.rows[1] = [str(value) for value in self.sheet.rows[1]]

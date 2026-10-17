@@ -7,7 +7,7 @@ DETAIL_HEADERS = ["Food_JSON", "Exercise_JSON"]
 
 def _read(sheet):
     rows = sheet.get_all_values()
-    if not rows:
+    if not any(any(cell != "" for cell in row) for row in rows):
         return HEADERS.copy(), []
     if rows[0][:5] != HEADERS or len(set(rows[0])) != len(rows[0]):
         raise ValueError("Unexpected sheet headers. No records were changed.")
@@ -63,7 +63,7 @@ def save_day(sheet, username, day, foods, exercises, net_calories,
         if not all(previous.get(key) for key in DETAIL_HEADERS) and not replace_legacy:
             raise ValueError("This date has an older summary. Confirm replacement first.")
     new_headers = headers + [key for key in DETAIL_HEADERS if key not in headers]
-    if new_headers != headers or not sheet.get_all_values():
+    if new_headers != headers:
         sheet.update(range_name="A1", values=[new_headers], value_input_option="RAW")
     values = {"Date": str(day), "Food_Log": food_summary,
               "Exercise_Log": exercise_summary, "Net_Calories": net_calories,

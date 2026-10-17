@@ -38,6 +38,14 @@ class StorageTests(unittest.TestCase):
         self.assertEqual(loaded["food_log"], [FOOD, FOOD])
         self.assertEqual(loaded["exercise_log"], [EXERCISE])
 
+    def test_gspread_empty_sheet_shapes_allow_initial_daily_save(self):
+        for rows in [[], [[]], [[""]], [["", ""], ["", ""]]]:
+            with self.subTest(rows=rows):
+                sheet = Sheet(rows)
+                self.assertEqual(load_day(sheet, "alice", "2026-10-18")["food_log"], [])
+                self.save(sheet)
+                self.assertEqual(load_day(sheet, "alice", "2026-10-18")["food_log"], [FOOD])
+
     def test_users_and_dates_do_not_overwrite_each_other(self):
         sheet = Sheet()
         self.save(sheet)
