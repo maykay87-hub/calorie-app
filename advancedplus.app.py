@@ -69,6 +69,68 @@ def save_daily_summary(selected_date, food_log, exercise_log, net_calories):
         st.error(f"Error saving to cloud: {e}")
         return False
 
+def report_profile_error(exc, stage):
+    logging.getLogger(__name__).exception("Profile failed at %s", stage)
+    response = getattr(exc, "response", None)
+    http_status = getattr(response, "status_code", None)
+    detail = f"{stage} / {exc.__class__.__name__}"
+    if http_status is not None:
+        detail += f" / HTTP {http_status}"
+    st.error(f"个人资料暂不可用，请提供以下错误编号。 Profile error: {detail}")
+    if isinstance(exc, (ValueError, TypeError, AttributeError, NameError)):
+        st.caption(str(exc))
+
+
+def render_profile_panel():
+    st.subheader("个人资料 · Profile")
+    if st.session_state.get("profile_loaded_user") != st.session_state["username"]:
+        profile_stage = "open_profiles"
+        try:
+            profile_sheet = get_sheet_connection("profiles")
+            profile_stage = "read_profile"
+            saved_profile = load_profile(profile_sheet, st.session_state["username"])
+        except Exception as exc:
+            report_profile_error(exc, profile_stage)
+            st.caption("已保存的饮食和运动仍可使用；个人资料恢复前暂停显示热量目标。 Food and exercise remain available; the energy target is paused.")
+            if st.button("重试读取资料 · Retry profile"):
+                st.rerun()
+            return None
+        initial = saved_profile or {
+            "height_cm": 160.0, "weight_kg": 70.0, "activity": ACTIVITIES[0]
+        }
+        st.session_state["profile_height_cm"] = initial["height_cm"]
+        st.session_state["profile_weight_kg"] = initial["weight_kg"]
+        st.session_state["profile_activity"] = initial["activity"]
+        st.session_state["profile_baseline"] = saved_profile
+        st.session_state["profile_loaded_user"] = st.session_state["username"]
+
+    height_cm = st.number_input("身高 Height (cm)", 100.0, 200.0, step=0.5, key="profile_height_cm")
+    weight_kg = st.number_input("体重 Weight (kg)", 30.0, 200.0, step=0.1, key="profile_weight_kg")
+    activity = st.selectbox("活动水平 Activity level", ACTIVITIES, key="profile_activity")
+    current_profile = {"height_cm": height_cm, "weight_kg": weight_kg, "activity": activity}
+    if st.button("保存个人资料 · Save profile", type="primary", use_container_width=True):
+        profile_stage = "open_profiles"
+        try:
+            profile_sheet = get_sheet_connection("profiles", create=True)
+            profile_stage = "write_profile"
+            stored_profile = save_profile(
+                profile_sheet, st.session_state["username"], height_cm, weight_kg, activity,
+            )
+            st.session_state["profile_baseline"] = stored_profile
+            st.success("个人资料已保存 · Profile saved")
+        except Exception as exc:
+            report_profile_error(exc, profile_stage)
+    baseline = st.session_state.get("profile_baseline")
+    if baseline is None:
+        st.caption("首次使用：请确认身高、体重和活动水平，再保存。 First visit: check the default values and save.")
+    elif current_profile != baseline:
+        st.caption("有未保存的个人资料修改。 Unsaved profile changes.")
+    else:
+        st.caption("个人资料已保存，重新登入会自动载入。 Saved profile loads after sign-in.")
+    st.caption("饮食和运动记录请使用主页面的「保存当天记录」。 Save daily food and exercise separately on the main page.")
+    st.divider()
+    return current_profile
+
 # --- 3. SECURE LOGIN SYSTEM ---
 def check_password():
     if "logged_in" not in st.session_state:
@@ -326,83 +388,34 @@ with st.sidebar:
 
     st.divider()
     
-    st.subheader("个人资料 · Profile")
-    if st.session_state.get("profile_loaded_user") != st.session_state["username"]:
-        try:
-            saved_profile = load_profile(
-                get_sheet_connection("profiles"), st.session_state["username"]
-            )
-        except Exception:
-            st.error("暂时无法读取个人资料。请重试，避免覆盖已有资料。 Could not load your profile.")
-            if st.button("重试读取资料 · Retry profile"):
-                st.rerun()
-            st.stop()
-        initial = saved_profile or {
-            "height_cm": 160.0, "weight_kg": 70.0, "activity": ACTIVITIES[0]
-        }
-        st.session_state["profile_height_cm"] = initial["height_cm"]
-        st.session_state["profile_weight_kg"] = initial["weight_kg"]
-        st.session_state["profile_activity"] = initial["activity"]
-        st.session_state["profile_baseline"] = saved_profile
-        st.session_state["profile_loaded_user"] = st.session_state["username"]
+    profile = render_profile_panel()
+    daily_needs = None
+    if profile is not None:
+        height_cm = profile["height_cm"]
+        weight_kg = profile["weight_kg"]
+        activity = profile["activity"]
+        height_m = height_cm / 100
+        bmi = weight_kg / (height_m ** 2)
+        
+        if bmi < 18.5:
+            st.info(f"BMI: {bmi:.1f} (Underweight)")
+            calc_weight = weight_kg
+        elif 18.5 <= bmi < 23:
+            st.success(f"BMI: {bmi:.1f} (Normal)")
+            calc_weight = weight_kg
+        elif 23 <= bmi < 25:
+            st.warning(f"BMI: {bmi:.1f} (Overweight)")
+            calc_weight = weight_kg
+        else:
+            st.error(f"BMI: {bmi:.1f} (Obese)")
+            ideal_weight = 22 * (height_m ** 2)
+            adj_weight = ideal_weight + 0.25 * (weight_kg - ideal_weight)
+            calc_weight = adj_weight
+            st.caption(f"⚠️ Adjusted Weight: {adj_weight:.1f}kg")
 
-    height_cm = st.number_input("身高 Height (cm)", 100.0, 200.0, step=0.5, key="profile_height_cm")
-    weight_kg = st.number_input("体重 Weight (kg)", 30.0, 200.0, step=0.1, key="profile_weight_kg")
-    activity = st.selectbox("活动水平 Activity level", ACTIVITIES, key="profile_activity")
-    current_profile = {"height_cm": height_cm, "weight_kg": weight_kg, "activity": activity}
-    if st.button("保存个人资料 · Save profile", type="primary", use_container_width=True):
-        profile_stage = "open_profiles"
-        try:
-            profile_sheet = get_sheet_connection("profiles", create=True)
-            profile_stage = "write_profile"
-            stored_profile = save_profile(
-                profile_sheet, st.session_state["username"], height_cm, weight_kg, activity,
-            )
-            st.session_state["profile_baseline"] = stored_profile
-            st.success("个人资料已保存 · Profile saved")
-        except Exception as exc:
-            logging.getLogger(__name__).exception("Profile save failed at %s", profile_stage)
-            error_type = exc.__class__.__name__
-            response = getattr(exc, "response", None)
-            http_status = getattr(response, "status_code", None)
-            detail = f"{profile_stage} / {error_type}"
-            if http_status is not None:
-                detail += f" / HTTP {http_status}"
-            st.error(f"个人资料未保存。请保留输入，并提供以下错误编号。 Profile not saved: {detail}")
-            if isinstance(exc, (ValueError, TypeError, AttributeError, NameError)):
-                st.caption(str(exc))
-    baseline = st.session_state.get("profile_baseline")
-    if baseline is None:
-        st.caption("首次使用：请确认身高、体重和活动水平，再保存。 First visit: check the default values and save.")
-    elif current_profile != baseline:
-        st.caption("有未保存的个人资料修改。 Unsaved profile changes.")
-    else:
-        st.caption("个人资料已保存，重新登入会自动载入。 Saved profile loads after sign-in.")
-    st.caption("饮食和运动记录请使用主页面的「保存当天记录」。 Save daily food and exercise separately on the main page.")
-    st.divider()
-    
-    height_m = height_cm / 100
-    bmi = weight_kg / (height_m ** 2)
-    
-    if bmi < 18.5:
-        st.info(f"BMI: {bmi:.1f} (Underweight)")
-        calc_weight = weight_kg
-    elif 18.5 <= bmi < 23:
-        st.success(f"BMI: {bmi:.1f} (Normal)")
-        calc_weight = weight_kg
-    elif 23 <= bmi < 25:
-        st.warning(f"BMI: {bmi:.1f} (Overweight)")
-        calc_weight = weight_kg
-    else:
-        st.error(f"BMI: {bmi:.1f} (Obese)")
-        ideal_weight = 22 * (height_m ** 2)
-        adj_weight = ideal_weight + 0.25 * (weight_kg - ideal_weight)
-        calc_weight = adj_weight
-        st.caption(f"⚠️ Adjusted Weight: {adj_weight:.1f}kg")
-
-    daily_needs = calc_weight * (25 if "Sedentary" in activity else 30)
-    st.metric("🔥 Daily Target", f"{int(daily_needs)} kcal")
-    
+        daily_needs = calc_weight * (25 if "Sedentary" in activity else 30)
+        st.metric("🔥 Daily Target", f"{int(daily_needs)} kcal")
+        
     if st.button("Log Out"):
         logout(st.session_state)
         st.rerun()
@@ -422,7 +435,7 @@ else:
     total_burned = 0
 
 net_calories = total_intake - total_burned
-remaining = daily_needs - net_calories
+remaining = daily_needs - net_calories if daily_needs is not None else None
 
 st.markdown(
     f'<div class="mb-summary" role="group" aria-label="每日热量 Daily calories">'
@@ -432,12 +445,16 @@ st.markdown(
     f'</div>',
     unsafe_allow_html=True,
 )
-progress = min(max(net_calories / daily_needs, 0.0), 1.0)
-st.progress(progress)
-if remaining < 0:
-    st.caption(f"高于当前目标 Above target: {abs(int(remaining)):,} kcal")
+if daily_needs is not None:
+    progress = min(max(net_calories / daily_needs, 0.0), 1.0)
+    st.progress(progress)
+    if remaining < 0:
+        st.caption(f"高于当前目标 Above target: {abs(int(remaining)):,} kcal")
+    else:
+        st.caption(f"距当前目标 Remaining: {int(remaining):,} kcal")
+
 else:
-    st.caption(f"距当前目标 Remaining: {int(remaining):,} kcal")
+    st.caption("个人资料暂不可用，当前不显示热量目标。 Energy target unavailable until your profile loads.")
 
 # --- SAVE TO CLOUD BUTTON ---
 replace_legacy = False
