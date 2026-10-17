@@ -4,6 +4,7 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 from datetime import date
 from tracker_state import logout, select_draft
+from tracker_storage import load_day, save_day
 
 # --- 1. APP CONFIGURATION ---
 st.set_page_config(page_title="May Bloom Advanced", page_icon="🌸", layout="wide")
@@ -45,13 +46,15 @@ def format_log_to_string(log_list, type="food"):
 
 def save_daily_summary(selected_date, food_log, exercise_log, net_calories):
     try:
-        # Save to the main log sheet (First Tab)
         sheet = get_sheet_connection("main")
-        food_str = format_log_to_string(food_log, type="food")
-        exercise_str = format_log_to_string(exercise_log, type="exercise")
-        
-        new_row = [str(selected_date), food_str, exercise_str, net_calories, st.session_state["username"]]
-        sheet.append_row(new_row)
+        save_day(
+            sheet, st.session_state["username"], selected_date,
+            food_log, exercise_log, net_calories,
+            format_log_to_string(food_log, type="food"),
+            format_log_to_string(exercise_log, type="exercise"),
+            replace_legacy=st.session_state.get("replace_legacy", False),
+        )
+        st.session_state["daily_drafts"][(st.session_state["username"], str(selected_date))]["legacy"] = False
         return True
     except Exception as e:
         st.error(f"Error saving to cloud: {e}")
@@ -132,7 +135,7 @@ if st.session_state["username"] == "admin":
             col3.metric("Latest Entry", df_master.iloc[-1]['Date'] if 'Date' in df_master.columns else "N/A")
             
             st.subheader("📋 Client Logs")
-            st.dataframe(df_master, use_container_width=True)
+            st.dataframe(df_master.drop(columns=["Food_JSON", "Exercise_JSON"], errors="ignore"), use_container_width=True)
             
             st.info("💡 Tip: To give feedback, go to the 'feedback' tab in Google Sheets and add a row for your client!")
 
@@ -156,8 +159,25 @@ st.markdown("""
 # --- DAILY DRAFT ---
 st.title("🌸 May Bloom Lifestyle Tracker")
 entry_date = st.date_input("📅 Date of Entry", date.today())
-select_draft(st.session_state, st.session_state["username"], entry_date)
-st.caption("Drafts stay available while this session is open. Save to Cloud before closing or refreshing the page.")
+draft = select_draft(st.session_state, st.session_state["username"], entry_date)
+if not draft.get("loaded"):
+    try:
+        saved = load_day(get_sheet_connection("main"), st.session_state["username"], entry_date)
+        draft["food_log"][:] = saved["food_log"]
+        draft["exercise_log"][:] = saved["exercise_log"]
+        draft["legacy"] = saved["legacy"]
+        draft["summary"] = saved.get("summary")
+        draft["loaded"] = True
+    except Exception:
+        st.error("Could not load saved records. Check your connection and try again. Editing is paused to protect existing records.")
+        if st.button("Retry loading records"):
+            st.rerun()
+        st.stop()
+st.caption("Saved records load when you sign in. Save to Cloud after editing; unsaved changes may be lost when you leave.")
+if draft.get("legacy"):
+    st.warning("This date has an older text summary without editable details. It is preserved unless you explicitly replace it.")
+    st.write(draft.get("summary"))
+
 
 # --- DATABASES ---
 food_database = {
@@ -322,7 +342,15 @@ else:
 
 # --- SAVE TO CLOUD BUTTON ---
 st.markdown("---")
-if st.button("☁️ Save Daily Summary to Cloud", use_container_width=True):
+replace_legacy = False
+if draft.get("legacy"):
+    replace_legacy = st.checkbox(
+        "Replace this older summary with the food and exercise currently entered",
+        key=f"replace_legacy_{entry_date}",
+    )
+st.session_state["replace_legacy"] = replace_legacy
+if st.button("☁️ Save Daily Summary to Cloud", use_container_width=True,
+             disabled=bool(draft.get("legacy")) and not replace_legacy):
     if save_daily_summary(entry_date, st.session_state.food_log, st.session_state.exercise_log, net_calories):
         st.success(f"Daily summary for {entry_date} saved to Google Sheets!")
         st.balloons()
@@ -404,7 +432,7 @@ with tab3:
             if my_history.empty:
                 st.warning("No records found for your username.")
             else:
-                st.dataframe(my_history.drop(columns=["username"]), use_container_width=True)
+                st.dataframe(my_history.drop(columns=["username", "Food_JSON", "Exercise_JSON"], errors="ignore"), use_container_width=True)
                 if not my_history.empty:
                     st.line_chart(my_history, x="Date", y="Net_Calories")
     except Exception as e:
