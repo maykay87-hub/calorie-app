@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import gspread
+import logging
 from oauth2client.service_account import ServiceAccountCredentials
 from datetime import date
 from tracker_state import logout, select_draft
@@ -350,15 +351,26 @@ with st.sidebar:
     activity = st.selectbox("活动水平 Activity level", ACTIVITIES, key="profile_activity")
     current_profile = {"height_cm": height_cm, "weight_kg": weight_kg, "activity": activity}
     if st.button("保存个人资料 · Save profile", type="primary", use_container_width=True):
+        profile_stage = "open_profiles"
         try:
+            profile_sheet = get_sheet_connection("profiles", create=True)
+            profile_stage = "write_profile"
             stored_profile = save_profile(
-                get_sheet_connection("profiles", create=True), st.session_state["username"],
-                height_cm, weight_kg, activity,
+                profile_sheet, st.session_state["username"], height_cm, weight_kg, activity,
             )
             st.session_state["profile_baseline"] = stored_profile
             st.success("个人资料已保存 · Profile saved")
-        except Exception:
-            st.error("资料未能保存，请检查连接后重试。 Profile was not saved; please retry.")
+        except Exception as exc:
+            logging.getLogger(__name__).exception("Profile save failed at %s", profile_stage)
+            error_type = exc.__class__.__name__
+            response = getattr(exc, "response", None)
+            http_status = getattr(response, "status_code", None)
+            detail = f"{profile_stage} / {error_type}"
+            if http_status is not None:
+                detail += f" / HTTP {http_status}"
+            st.error(f"个人资料未保存。请保留输入，并提供以下错误编号。 Profile not saved: {detail}")
+            if isinstance(exc, (ValueError, TypeError, AttributeError, NameError)):
+                st.caption(str(exc))
     baseline = st.session_state.get("profile_baseline")
     if baseline is None:
         st.caption("首次使用：请确认身高、体重和活动水平，再保存。 First visit: check the default values and save.")
