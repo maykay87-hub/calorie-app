@@ -9,7 +9,8 @@ from tracker_state import logout, select_draft
 st.set_page_config(page_title="May Bloom Advanced", page_icon="🌸", layout="wide")
 
 # --- 2. GOOGLE SHEETS CONNECTION ---
-SHEET_NAME = "wellness_database"
+# This test branch requires an explicit spreadsheet ID; never fall back to the live database.
+SPREADSHEET_ID = st.secrets["spreadsheet_id"]
 
 def get_sheet_connection(type="main"):
     """
@@ -21,7 +22,7 @@ def get_sheet_connection(type="main"):
     creds = ServiceAccountCredentials.from_json_keyfile_dict(dict(st.secrets["service_account"]), scope)
     client = gspread.authorize(creds)
     
-    spreadsheet = client.open(SHEET_NAME)
+    spreadsheet = client.open_by_key(SPREADSHEET_ID)
     
     if type == "feedback":
         try:
