@@ -190,12 +190,8 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- DAILY DRAFT ---
-st.markdown(
-    '<div class="mb-brand"><span class="mb-brand-mark" aria-hidden="true">✿</span>'
-    '<span class="mb-brand-name">May Bloom</span></div>'
-    '<p class="mb-subtitle">Lifestyle Tracker · 生活记录</p>',
-    unsafe_allow_html=True,
-)
+st.subheader("✿ May Bloom")
+st.caption("Lifestyle Tracker · 生活记录")
 entry_date = st.date_input("📅 Date of Entry", date.today())
 draft = select_draft(st.session_state, st.session_state["username"], entry_date)
 if not draft.get("loaded"):
