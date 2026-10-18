@@ -28,3 +28,22 @@ Seven legacy IDs with zero/ambiguous portions or directly superseded variants ar
 Use MyFCD (https://myfcd.moh.gov.my/) for complete per-100g composition and retain raw/cooked/preparation distinctions. Add branded label data only with product identity and label date. Extend coverage through source-reviewed batches, rather than treating a long unreviewed list as accurate.
 
 Reference values are portion-specific estimates. Soup and dry versions must remain separate; neither the dry pan mee entry nor its aliases claim to describe chilli pan mee. User confirmation of food, preparation and portion remains necessary even if photo or barcode entry is added later.
+
+
+## Macronutrient enrichment and editing (2026-10-18)
+
+Five MFC-coded KKM preparations now have matched MyFCD 1997 protein, carbohydrate
+and fat estimates: cooked white rice (101014), fried rice (221021), fried rice
+noodles (221013), plain roti canai (221023), and roti telur (221024).
+The official per-100g values, food code, detail URL and access date are stored
+per record in `macronutrient_source`. Match checks use preparation name and an
+energy agreement within 2.5% after scaling to KKM weight; this tolerance is a
+cross-check, not evidence that vendors use identical recipes. KKM energy remains
+unchanged. Other new dishes retain unknown macros. Existing saved snapshots are
+not retroactively enriched or recalculated.
+
+The dashboard displays known protein and missing-entry counts; partial sums
+are never labeled full-day totals. Original exchange estimates remain explicitly
+unverified. Serving edits scale the saved snapshot, preserving unknown nutrients
+and provenance. Deletion and edits require the user's normal Save action; status
+compares the full draft against its last loaded/saved snapshot.

@@ -1,4 +1,5 @@
 """Local source-backed food references and explicit missing-nutrient handling."""
+from copy import deepcopy
 import json
 import math
 from pathlib import Path
@@ -49,6 +50,8 @@ def make_food_entry(database, food_id, meal, quantity):
             "reference_code": reference["reference_code"],
             "weight_g_per_serving": reference["weight_g"],
         }
+        if reference.get("macronutrient_source"):
+            entry["Source"]["macronutrients"] = deepcopy(reference["macronutrient_source"])
     else:
         entry["Source"] = {"status": "legacy_estimate", "title": "Original exchange estimate; source not recorded"}
     return entry

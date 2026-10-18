@@ -23,9 +23,24 @@ class ReferenceFoodTests(unittest.TestCase):
                 self.assertTrue(1 <= item["pdf_page"] <= 108)
                 self.assertIn(item["reference_code"], SOURCE["reference_codes"])
                 self.assertTrue(item["original_name"])
-                self.assertIsNone(self.database[key]["Prot"])
-                self.assertIsNone(self.database[key]["Carbs"])
-                self.assertIsNone(self.database[key]["Fat"])
+                for nutrient in ["Prot", "Carbs", "Fat"]:
+                    if item.get("macronutrient_source"):
+                        self.assertGreaterEqual(self.database[key][nutrient], 0)
+                    else:
+                        self.assertIsNone(self.database[key][nutrient])
+
+    def test_matched_macros_are_scaled_and_source_is_saved(self):
+        matched = [x for x in REFERENCE_RECORDS.values() if x.get("macronutrient_source")]
+        self.assertEqual(len(matched), 5)
+        for item in matched:
+            source = item["macronutrient_source"]
+            raw = source["per_100g"]
+            self.assertLess(abs(raw["Energy"] * item["weight_g"] / 100 - item["energy_kcal"]) / item["energy_kcal"], .025)
+            entry = make_food_entry(self.database, item["id"], "Lunch", .5)
+            self.assertAlmostEqual(entry["Protein"], round(raw["Protein"] * item["weight_g"] / 100, 3) * .5)
+            self.assertEqual(entry["Source"]["macronutrients"]["food_code"], source["food_code"])
+            entry["Source"]["macronutrients"]["title"] = "changed"
+            self.assertEqual(source["title"], "MyFCD 1997")
 
     def test_soup_and_dry_noodles_are_distinct_portion_specific_records(self):
         wantan = filter_foods(self.database, query="云吞面")

@@ -1,8 +1,19 @@
 import unittest
-from tracker_state import logout, select_draft
+from tracker_state import logout, select_draft, daily_signature
 
 
 class DraftIsolationTests(unittest.TestCase):
+    def test_save_status_tracks_edits_deletions_and_unknown_nutrients(self):
+        food = [{"Qty": 1, "Protein": None, "Calories": 100}]
+        saved = daily_signature(food, [])
+        self.assertEqual(saved, daily_signature([dict(reversed(list(food[0].items())))], []))
+        food[0]["Protein"] = 0
+        self.assertNotEqual(saved, daily_signature(food, []))
+        food[0]["Protein"] = None
+        self.assertEqual(saved, daily_signature(food, []))
+        self.assertNotEqual(saved, daily_signature([], []))
+        self.assertNotEqual(saved, daily_signature(food, [{"Activity": "Walk"}]))
+
     def test_date_switch_preserves_each_days_food_and_exercise(self):
         state = {}
         select_draft(state, "student", "2026-10-17")

@@ -273,13 +273,26 @@
       "portion": "1 plate",
       "weight_g": 170,
       "energy_kcal": 295,
-      "protein_g": null,
-      "carbs_g": null,
-      "fat_g": null,
+      "protein_g": 7.31,
+      "carbs_g": 40.63,
+      "fat_g": 11.39,
       "pdf_page": 12,
       "reference_code": "MFC",
       "aliases": "炒米粉 bihun bee hoon meehoon goreng",
-      "category": "本地餐食 · Local meals"
+      "category": "本地餐食 · Local meals",
+      "macronutrient_source": {
+        "title": "MyFCD 1997",
+        "food_code": "221013",
+        "url": "https://myfcd.moh.gov.my/myfcd97/index.php/site/detail_product/221013/0/10/-1/0/0/",
+        "per_100g": {
+          "Energy": 173.0,
+          "Protein": 4.3,
+          "Fat": 6.7,
+          "Carbohydrate": 23.9
+        },
+        "accessed": "2026-10-18",
+        "basis": "Matching preparation; scaled to KKM serving weight. Recipe estimate, not vendor-specific."
+      }
     },
     {
       "id": "Bihun Soup (1 bowl, 450 g; KKM reference)",
@@ -378,13 +391,26 @@
       "portion": "1 plate",
       "weight_g": 200,
       "energy_kcal": 386,
-      "protein_g": null,
-      "carbs_g": null,
-      "fat_g": null,
+      "protein_g": 9.8,
+      "carbs_g": 52.6,
+      "fat_g": 15.2,
       "pdf_page": 67,
       "reference_code": "MFC",
       "aliases": "炒饭 炒飯 nasi goreng fried rice",
-      "category": "本地餐食 · Local meals"
+      "category": "本地餐食 · Local meals",
+      "macronutrient_source": {
+        "title": "MyFCD 1997",
+        "food_code": "221021",
+        "url": "https://myfcd.moh.gov.my/myfcd97/index.php/site/detail_product/221021/0/10/-1/0/0/",
+        "per_100g": {
+          "Energy": 193.0,
+          "Protein": 4.9,
+          "Fat": 7.6,
+          "Carbohydrate": 26.3
+        },
+        "accessed": "2026-10-18",
+        "basis": "Matching preparation; scaled to KKM serving weight. Recipe estimate, not vendor-specific."
+      }
     },
     {
       "id": "Nasi Goreng with Fried Egg (1 set, 246 g; KKM reference)",
@@ -498,13 +524,26 @@
       "portion": "1 piece",
       "weight_g": 95,
       "energy_kcal": 300,
-      "protein_g": null,
-      "carbs_g": null,
-      "fat_g": null,
+      "protein_g": 6.65,
+      "carbs_g": 45.505,
+      "fat_g": 10.26,
       "pdf_page": 83,
       "reference_code": "MFC",
       "aliases": "roti canai roti prata 印度煎饼 印度煎餅",
-      "category": "本地餐食 · Local meals"
+      "category": "本地餐食 · Local meals",
+      "macronutrient_source": {
+        "title": "MyFCD 1997",
+        "food_code": "221023",
+        "url": "https://myfcd.moh.gov.my/myfcd97/index.php/site/detail_product/221023/0/10/-1/0/0/",
+        "per_100g": {
+          "Energy": 317.0,
+          "Protein": 7.0,
+          "Fat": 10.8,
+          "Carbohydrate": 47.9
+        },
+        "accessed": "2026-10-18",
+        "basis": "Matching preparation; scaled to KKM serving weight. Recipe estimate, not vendor-specific."
+      }
     },
     {
       "id": "Roti Telur (1 piece, 135 g; KKM reference)",
@@ -513,13 +552,26 @@
       "portion": "1 piece",
       "weight_g": 135,
       "energy_kcal": 355,
-      "protein_g": null,
-      "carbs_g": null,
-      "fat_g": null,
+      "protein_g": 12.42,
+      "carbs_g": 46.17,
+      "fat_g": 13.5,
       "pdf_page": 84,
       "reference_code": "MFC",
       "aliases": "roti telur 鸡蛋煎饼 雞蛋煎餅",
-      "category": "本地餐食 · Local meals"
+      "category": "本地餐食 · Local meals",
+      "macronutrient_source": {
+        "title": "MyFCD 1997",
+        "food_code": "221024",
+        "url": "https://myfcd.moh.gov.my/myfcd97/index.php/site/detail_product/221024/0/10/-1/0/0/",
+        "per_100g": {
+          "Energy": 264.0,
+          "Protein": 9.2,
+          "Fat": 10.0,
+          "Carbohydrate": 34.2
+        },
+        "accessed": "2026-10-18",
+        "basis": "Matching preparation; scaled to KKM serving weight. Recipe estimate, not vendor-specific."
+      }
     },
     {
       "id": "Tosai Plain (1 piece, 80 g; KKM reference)",
@@ -648,13 +700,26 @@
       "portion": "1 scoop",
       "weight_g": 76,
       "energy_kcal": 100,
-      "protein_g": null,
-      "carbs_g": null,
-      "fat_g": null,
+      "protein_g": 1.748,
+      "carbs_g": 22.8,
+      "fat_g": 0.076,
       "pdf_page": 69,
       "reference_code": "MFC",
       "aliases": "白饭 白飯 nasi putih cooked white rice",
-      "category": "主食与谷物 · Grains & starches"
+      "category": "主食与谷物 · Grains & starches",
+      "macronutrient_source": {
+        "title": "MyFCD 1997",
+        "food_code": "101014",
+        "url": "https://myfcd.moh.gov.my/myfcd97/index.php/site/detail_product/101014/0/10/-1/0/0/",
+        "per_100g": {
+          "Energy": 130.0,
+          "Protein": 2.3,
+          "Fat": 0.1,
+          "Carbohydrate": 30.0
+        },
+        "accessed": "2026-10-18",
+        "basis": "Matching preparation; scaled to KKM serving weight. Recipe estimate, not vendor-specific."
+      }
     },
     {
       "id": "Nasi Kerabu Set (1 set, 260 g; KKM reference)",

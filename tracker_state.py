@@ -14,3 +14,9 @@ def select_draft(state, username, entry_date):
 def logout(state):
     # Clear widgets, profile values and drafts before another account signs in.
     state.clear()
+
+
+def daily_signature(foods, exercises):
+    """Compare full saved snapshots, including unknown nutrients and sources."""
+    import json
+    return json.dumps([foods, exercises], sort_keys=True, ensure_ascii=False, allow_nan=False)

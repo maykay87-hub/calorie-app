@@ -4,7 +4,8 @@ import gspread
 import logging
 from oauth2client.service_account import ServiceAccountCredentials
 from datetime import date
-from tracker_state import logout, select_draft
+from tracker_state import logout, select_draft, daily_signature
+from entry_editor import rescale_food, rescale_exercise, nutrient_coverage
 from tracker_storage import load_day, save_day
 from profile_storage import ACTIVITIES, load_profile, save_profile
 from nutrition_registry import SOURCE, REFERENCE_RECORDS, reference_database, make_food_entry, format_energy
@@ -66,6 +67,9 @@ def save_daily_summary(selected_date, food_log, exercise_log, net_calories):
             replace_legacy=st.session_state.get("replace_legacy", False),
         )
         st.session_state["daily_drafts"][(st.session_state["username"], str(selected_date))]["legacy"] = False
+        draft_saved = st.session_state["daily_drafts"][(st.session_state["username"], str(selected_date))]
+        draft_saved["saved_signature"] = daily_signature(food_log, exercise_log)
+        st.session_state["daily_save_notice"] = str(selected_date)
         return True
     except Exception as e:
         st.error(f"Error saving to cloud: {e}")
@@ -278,6 +282,7 @@ if not draft.get("loaded"):
             )
         draft["legacy"] = saved["legacy"]
         draft["summary"] = saved.get("summary")
+        draft["saved_signature"] = daily_signature(draft["food_log"], draft["exercise_log"])
         draft["loaded"] = True
     except Exception:
         st.error("Could not load saved records. Check your connection and try again. Editing is paused to protect existing records.")
@@ -464,6 +469,26 @@ if daily_needs is not None:
 else:
     st.caption("个人资料暂不可用，当前不显示热量目标。 Energy target unavailable until your profile loads.")
 
+if st.session_state.food_log:
+    protein = nutrient_coverage(st.session_state.food_log, "Protein")
+    if protein["missing_entries"] == protein["entry_count"]:
+        st.info("蛋白质：这些餐食尚未提供资料 · Protein data unavailable for these foods")
+    elif protein["missing_entries"]:
+        st.info(f"蛋白质已知部分 · Known protein: {format_energy(protein['known_total'])} g；另有 {protein['missing_entries']} 项未提供 · foods missing data")
+    else:
+        st.info(f"已记录蛋白质 · Recorded protein: {format_energy(protein['known_total'])} g（参考估算 · estimate）")
+    with st.expander("营养合计与完整度 · Nutrient totals"):
+        st.caption("以下为已知部分的合计；缺资料时不能视为全天总量。 Totals cover known values only.")
+        for nutrient, label in [("Protein", "蛋白质 Protein"), ("Carbs", "碳水 Carbs"), ("Fat", "脂肪 Fat")]:
+            coverage = nutrient_coverage(st.session_state.food_log, nutrient)
+            amount = format_energy(coverage["known_total"]) + " g" if coverage["missing_entries"] < coverage["entry_count"] else "—"
+            st.write(f"{label}: {amount} · {coverage['entry_count'] - coverage['missing_entries']}/{coverage['entry_count']} 项有资料")
+
+if daily_signature(st.session_state.food_log, st.session_state.exercise_log) != draft.get("saved_signature"):
+    st.warning("有未保存的修改 · Unsaved changes")
+elif st.session_state.pop("daily_save_notice", None) == str(entry_date):
+    st.success(f"已保存 Saved · {entry_date}")
+
 # --- SAVE TO CLOUD BUTTON ---
 replace_legacy = False
 if draft.get("legacy"):
@@ -475,7 +500,7 @@ st.session_state["replace_legacy"] = replace_legacy
 if st.button("保存当天记录 · Save", type="primary", use_container_width=True,
              disabled=bool(draft.get("legacy")) and not replace_legacy):
     if save_daily_summary(entry_date, st.session_state.food_log, st.session_state.exercise_log, net_calories):
-        st.success(f"已保存 Saved · {entry_date}")
+        st.rerun()
 
 # --- TABS ---
 tab1, tab2, tab3 = st.tabs(["饮食 Food", "运动 Exercise", "历史 History"])
@@ -509,6 +534,11 @@ with tab1:
         reference = REFERENCE_RECORDS.get(food)
         if reference:
             st.caption(f"参考1份 · Reference serving: {reference['weight_g']:g} g · {reference['energy_kcal']:g} kcal")
+        selected_protein = food_database[food]["Prot"]
+        if selected_protein is None:
+            st.caption("每份蛋白质：暂缺资料 · Protein per serving: unavailable")
+        else:
+            st.caption(f"每份蛋白质 · Protein per serving: {format_energy(selected_protein)} g（参考估算）")
         with st.expander("份量与资料来源 · Portion & source"):
             if reference:
                 source_url = SOURCE["url"] + f"#page={reference['pdf_page']}"
@@ -517,7 +547,12 @@ with tab1:
                 code = reference["reference_code"]
                 st.caption(f"原始参考 · Original reference: {code} — {SOURCE['reference_codes'][code]}")
                 st.caption("这是指定份量的参考热量，摊位配方和实际份量会影响结果。 Reference energy is portion-specific; recipes and actual portions vary.")
-                st.caption("来源未提供蛋白质、碳水和脂肪；表格以 — 显示。 Macronutrients are not supplied by this source.")
+                macro_source = reference.get("macronutrient_source")
+                if macro_source:
+                    st.markdown(f"[蛋白质、碳水与脂肪 · {macro_source['title']}]({macro_source['url']})")
+                    st.caption("同名做法的每100g营养值按参考份量重量换算；不同配方仍有差异。 Matched preparation scaled by weight; recipes vary.")
+                else:
+                    st.caption("来源未提供蛋白质、碳水和脂肪；表格以 — 显示。 Macronutrients are not supplied by this source.")
             else:
                 st.caption("原有交换份估算，逐项来源和重量待复核。 Original exchange estimate; item-level source and weight remain under review.")
         with st.form("add_food_form", clear_on_submit=False):
@@ -552,6 +587,24 @@ with tab1:
         st.caption(f"饮食合计 Food total: {format_energy(total_intake)} kcal")
         st.caption("— 表示未提供该项营养数值，不代表零。 A dash means not available, not zero.")
         
+        with st.expander("修改或删除一笔 · Edit food entry"):
+            food_rows = st.session_state.food_log
+            edit_index = st.selectbox("选择记录 · Entry", range(len(food_rows)),
+                format_func=lambda i: f"{i + 1}. {MEAL_LABELS.get(food_rows[i]['Meal'], food_rows[i]['Meal'])} · {food_label(food_rows[i]['Food'])} · {food_rows[i]['Qty']:g}份",
+                key=f"food_edit_index_{entry_date}")
+            selected = food_rows[edit_index]
+            with st.form(f"food_edit_{entry_date}_{edit_index}_{selected['Qty']}"):
+                new_qty = st.number_input("修改份数 · Servings", min_value=0.1, value=float(selected["Qty"]), step=0.5)
+                update_food = st.form_submit_button("更新份数 · Update servings", use_container_width=True)
+                delete_food = st.form_submit_button("删除这一笔 · Delete entry", use_container_width=True)
+            if update_food:
+                food_rows[edit_index] = rescale_food(selected, new_qty)
+                st.rerun()
+            if delete_food:
+                food_rows.pop(edit_index)
+                st.session_state.pop(f"food_edit_index_{entry_date}", None)
+                st.rerun()
+
         col_undo, col_clear = st.columns(2)
         with col_undo:
             if st.button("撤销上一笔 · Undo", use_container_width=True):
@@ -561,6 +614,11 @@ with tab1:
             if st.button("清空当天饮食 · Clear food", use_container_width=True):
                 st.session_state.food_log.clear()
                 st.rerun()
+
+    if st.button("保存当天记录 · Save day", key="save_bottom_food", type="primary", use_container_width=True,
+                 disabled=bool(draft.get("legacy")) and not replace_legacy):
+        if save_daily_summary(entry_date, st.session_state.food_log, st.session_state.exercise_log, net_calories):
+            st.rerun()
 
 with tab2:
     with st.form("add_exercise_form", clear_on_submit=False):
@@ -580,6 +638,24 @@ with tab2:
         st.dataframe(pd.DataFrame(st.session_state.exercise_log), use_container_width=True)
         st.caption(f"运动合计 Exercise total: {format_energy(total_burned)} kcal")
         
+        with st.expander("修改或删除一笔 · Edit exercise entry"):
+            exercise_rows = st.session_state.exercise_log
+            edit_index = st.selectbox("选择运动 · Activity entry", range(len(exercise_rows)),
+                format_func=lambda i: f"{i + 1}. {exercise_rows[i]['Activity']} · {exercise_rows[i]['Duration']:g} min",
+                key=f"exercise_edit_index_{entry_date}")
+            selected = exercise_rows[edit_index]
+            with st.form(f"exercise_edit_{entry_date}_{edit_index}_{selected['Duration']}"):
+                new_minutes = st.number_input("运动分钟 · Minutes", min_value=1.0, value=float(selected["Duration"]), step=5.0)
+                update_activity = st.form_submit_button("更新时长 · Update duration", use_container_width=True)
+                delete_activity = st.form_submit_button("删除这一笔运动 · Delete activity", use_container_width=True)
+            if update_activity:
+                exercise_rows[edit_index] = rescale_exercise(selected, new_minutes)
+                st.rerun()
+            if delete_activity:
+                exercise_rows.pop(edit_index)
+                st.session_state.pop(f"exercise_edit_index_{entry_date}", None)
+                st.rerun()
+
         col_undo, col_clear = st.columns(2)
         with col_undo:
             if st.button("Undo Last Activity ↩️", use_container_width=True):
@@ -589,6 +665,11 @@ with tab2:
             if st.button("Clear All Exercise 🗑️", use_container_width=True):
                 st.session_state.exercise_log.clear()
                 st.rerun()
+
+    if st.button("保存当天记录 · Save day", key="save_bottom_exercise", type="primary", use_container_width=True,
+                 disabled=bool(draft.get("legacy")) and not replace_legacy):
+        if save_daily_summary(entry_date, st.session_state.food_log, st.session_state.exercise_log, net_calories):
+            st.rerun()
 
 with tab3:
     st.subheader("历史记录 · History")
