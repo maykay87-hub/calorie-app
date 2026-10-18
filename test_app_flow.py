@@ -376,3 +376,18 @@ class AppFlowTests(unittest.TestCase):
         self.at.button(key='save_bottom_food').click().run()
         self.assertFalse(self.at.exception)
         self.assertFalse(any(x.key == f'pending_day_{day}' for x in self.at.button))
+
+    def test_coach_selects_one_student_and_latest_saved_day(self):
+        day = self.at.date_input(key='entry_date').value
+        save_day(self.sheet, 'student', day, [FOOD], [], 75, 'student rice', 'None')
+        save_day(self.sheet, 'another', day, [dict(FOOD, Protein=None)], [], 75, 'other rice', 'None')
+        self.at.session_state['username'] = 'admin'
+        self.at.run()
+        self.assertFalse(self.at.exception)
+        self.assertEqual(self.at.selectbox(key='coach_student').value, 'another')
+        self.assertIn('other rice', self.at.dataframe[0].value.to_string())
+        self.assertNotIn('student rice', self.at.dataframe[0].value.to_string())
+        self.at.selectbox(key='coach_student').set_value('student').run()
+        self.assertFalse(self.at.exception)
+        self.assertIn('student rice', self.at.dataframe[0].value.to_string())
+        self.assertNotIn('other rice', self.at.dataframe[0].value.to_string())

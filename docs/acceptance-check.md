@@ -4,7 +4,7 @@ The test branch is `tracker-v2/mobile-entry-session-fixes`. Production main is u
 
 ## Automated checks
 
-102 tests pass, including 23 real Streamlit AppTest scenarios.
+105 tests pass, including 24 real Streamlit AppTest scenarios.
 
 Real Streamlit AppTest executes the complete application against in-memory Google Sheets doubles. It covers search changes, package-label input, missing values, serving and meal edits, individual deletion, shrinking entry lists, exercise duration edits, negative net energy, saving and fresh-session restore, separate date drafts, opening a day from history, logout and switching accounts, legacy replacement protection, failed-save retry, and profile failure/recovery and persistence. Pure unit tests separately verify per-record nutrient scaling, provenance, schema handling, empty gspread sheets, partial protein totals, latest-row history, and account/date separation.
 
@@ -97,3 +97,15 @@ without losing the current draft. Saving or undoing back to the saved contents
 removes that date from the list. Drafts remain session-only, not a replacement
 for Save day. Tests cover account isolation and returning to a pending day,
 saving it and removing its reminder.
+
+## Coach view consistency
+
+The existing admin account now selects one student at a time and shows only the
+latest saved record per student/date, matching the student editor and history.
+Saved-day counts exclude duplicate historical rows, invalid dates and admin test
+records. Latest date is the greatest valid saved date, not the last physical row.
+The overview reads the sheet once and does not modify any rows. Protein distinguishes
+complete totals, partial known totals and unavailable values; legacy or malformed
+details retain their text summaries. AppTest switches between two students and
+checks that only the selected student's summary appears. Unit tests verify the
+single read, latest-row rule, original-row preservation and partial protein.

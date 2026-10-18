@@ -11,7 +11,7 @@ from entry_editor import rescale_food, rescale_exercise, nutrient_coverage
 from label_entry import make_label_entry, entry_amount_label
 from label_library import load_personal_labels, remember_label, template_key, reuse_label
 from tracker_storage import load_day, save_day, day_snapshot, SaveConflictError
-from tracker_history import load_history
+from tracker_history import load_history, load_coach_history
 from tracker_export import export_history_csv, export_draft
 from profile_storage import ACTIVITIES, load_profile, save_profile
 from nutrition_registry import SOURCE, SG_SOURCE, REFERENCE_RECORDS, reference_database, reference_portion, make_food_entry, format_energy
@@ -226,30 +226,43 @@ if st.session_state["username"] == "admin":
             st.rerun()
     # --- ADMIN SIDEBAR END ---
 
-    st.title("👑 Admin Dashboard")
-    st.success("Welcome, Coach! Here is the master view.")
-    
+    st.title("学生记录 · Coach dashboard")
+    st.caption("按学生与日期显示最新保存版本；未保存的学生草稿不会出现在这里。 Latest saved record per student and day; unsaved drafts are not included.")
     try:
-        sheet = get_sheet_connection("main")
-        data = sheet.get_all_records()
-        df_master = pd.DataFrame(data)
-        
-        if df_master.empty:
-            st.warning("⚠️ Google Sheet is empty.")
+        records = load_coach_history(get_sheet_connection("main"))
+        if not records:
+            st.info("暂无可显示的学生记录 · No saved student records yet")
         else:
+            users = sorted({row["username"] for row in records})
             col1, col2, col3 = st.columns(3)
-            col1.metric("Total Entries", len(df_master))
-            col2.metric("Total Clients", df_master['username'].nunique())
-            col3.metric("Latest Entry", df_master.iloc[-1]['Date'] if 'Date' in df_master.columns else "N/A")
-            
-            st.subheader("📋 Client Logs")
-            st.dataframe(df_master.drop(columns=["Food_JSON", "Exercise_JSON"], errors="ignore"), use_container_width=True)
-            
-            st.info("💡 Tip: To give feedback, go to the 'feedback' tab in Google Sheets and add a row for your client!")
+            col1.metric("已记录天数 · Saved days", len(records))
+            col2.metric("学生人数 · Students", len(users))
+            col3.metric("最新日期 · Latest date", max(row["Date"] for row in records))
+            chosen_user = st.selectbox("查看学生 · Student", users, key="coach_student")
+            student_records = [row for row in records if row["username"] == chosen_user]
+            view = []
+            for row in student_records:
+                if row["Protein"] is not None:
+                    protein_text = f"{format_energy(row['Protein'])} g"
+                elif row["known_protein"] is not None and row["missing_protein_entries"] < row["food_entries"]:
+                    protein_text = f"{format_energy(row['known_protein'])} g（部分 · partial）"
+                else:
+                    protein_text = "— 未提供"
+                status_text = {"detailed": "明细记录 · Detailed", "legacy": "旧摘要 · Older summary",
+                               "invalid_details": "明细需检查 · Details need review"}[row["status"]]
+                view.append({"日期 Date": row["Date"], "净热量 Net kcal": row["Net_Calories"],
+                             "蛋白质 Protein": protein_text, "记录类型 Status": status_text,
+                             "饮食 Food": row["Food_Log"], "运动 Exercise": row["Exercise_Log"]})
+            st.dataframe(pd.DataFrame(view), use_container_width=True, hide_index=True)
+            st.caption("部分蛋白质仅为有资料食物的合计，不是全天总量。 Partial protein counts known foods only.")
+            chart = pd.DataFrame(student_records).dropna(subset=["Net_Calories"]).sort_values("Date")
+            if not chart.empty:
+                st.line_chart(chart.assign(Date=pd.to_datetime(chart["Date"])), x="Date", y="Net_Calories")
+            st.caption("填写反馈：在 Google Sheets 的 feedback 分页添加对应学生的 username、month 和 note。 Add feedback in the feedback sheet.")
+    except Exception:
+        logging.getLogger(__name__).exception("Coach history unavailable")
+        st.error("暂时无法读取学生记录，请稍后重试。 Could not load student records; please retry.")
 
-    except Exception as e:
-        st.error(f"System Error: {e}")
-        
     st.stop() 
 
 # ==========================================

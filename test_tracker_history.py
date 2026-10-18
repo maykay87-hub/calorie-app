@@ -49,3 +49,34 @@ class HistoryTests(unittest.TestCase):
         for value in ['', 'oops', 'NaN', 'Infinity']:
             row = load_history(Sheet([HEADERS, ['2026-10-18', '', '', value, 'alice']]), 'alice')[0]
             self.assertIsNone(row['Net_Calories'])
+
+
+class CoachHistoryTests(unittest.TestCase):
+    def test_latest_student_days_single_read_and_no_sheet_changes(self):
+        from tracker_history import load_coach_history
+        sheet = Sheet([HEADERS, ['2026-10-17', 'old', 'None', '20', 'alice'],
+                       ['2026-10-17', 'latest', 'None', '50', 'alice'],
+                       ['2026-10-18', 'bob food', 'None', '70', 'bob'],
+                       ['bad date', 'invalid', 'None', '0', 'alice'],
+                       ['2026-10-18', 'admin test', 'None', '0', 'admin']])
+        before = copy.deepcopy(sheet.rows)
+        original = sheet.get_all_values
+        calls = []
+        def read():
+            calls.append(True)
+            return original()
+        sheet.get_all_values = read
+        result = load_coach_history(sheet)
+        self.assertEqual(len(calls), 1)
+        self.assertEqual([(r['username'], r['Food_Log']) for r in result], [('alice', 'latest'), ('bob', 'bob food')])
+        self.assertEqual(sheet.rows, before)
+
+    def test_coach_keeps_partial_protein_distinct(self):
+        from tracker_history import load_coach_history
+        sheet = Sheet([HEADERS])
+        foods = [dict(FOOD, Protein=3.0), dict(FOOD, Protein=None)]
+        save_day(sheet, 'alice', '2026-10-17', foods, [], 150, 'rice twice', 'None')
+        result = load_coach_history(sheet)[0]
+        self.assertIsNone(result['Protein'])
+        self.assertEqual(result['known_protein'], 3)
+        self.assertEqual(result['missing_protein_entries'], 1)

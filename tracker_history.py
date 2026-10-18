@@ -7,6 +7,10 @@ from tracker_storage import _read, _decode
 
 def load_history(sheet, username):
     headers, rows = _read(sheet)
+    return history_from_rows(headers, rows, username)
+
+
+def history_from_rows(headers, rows, username):
     latest = {}
     for row in rows:
         values = dict(zip(headers, row))
@@ -44,3 +48,11 @@ def load_history(sheet, username):
                 item["status"] = "invalid_details"
         latest[day] = item
     return [latest[day] for day in sorted(latest, reverse=True)]
+
+
+def load_coach_history(sheet):
+    """Read once; apply the student's latest-row and nutrient-coverage rules."""
+    headers, rows = _read(sheet)
+    users = sorted({str(dict(zip(headers, row)).get("username", "")) for row in rows} - {"", "admin"})
+    return [dict(item, username=user) for user in users
+            for item in history_from_rows(headers, rows, user)]
