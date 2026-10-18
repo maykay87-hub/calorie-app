@@ -4,7 +4,7 @@ The test branch is `tracker-v2/mobile-entry-session-fixes`. Production main is u
 
 ## Automated checks
 
-107 tests pass, including 26 real Streamlit AppTest scenarios.
+108 tests pass, including 27 real Streamlit AppTest scenarios.
 
 Real Streamlit AppTest executes the complete application against in-memory Google Sheets doubles. It covers search changes, package-label input, missing values, serving and meal edits, individual deletion, shrinking entry lists, exercise duration edits, negative net energy, saving and fresh-session restore, separate date drafts, opening a day from history, logout and switching accounts, legacy replacement protection, failed-save retry, and profile failure/recovery and persistence. Pure unit tests separately verify per-record nutrient scaling, provenance, schema handling, empty gspread sheets, partial protein totals, latest-row history, and account/date separation.
 
@@ -119,3 +119,17 @@ saved profile; a caption explains how to update it. A failed profile save preser
 the input fields and previous baseline. Existing daily records are not recalculated.
 AppTest covers a new profile through first save, food entry before profile save,
 and a weight change that updates the target only after successful profile save.
+
+## Login and deployment handoff
+
+Login is a bilingual Streamlit form, supporting keyboard submission. Trim only
+outer username spaces; retain case and exact password matching. Failed credentials
+remain signed out; successful sign-in removes login input credentials from session
+state. Tests cover rejection, retry, credential cleanup and logout/account isolation.
+The four runtime dependencies are present in requirements.txt.
+
+The exact deployed test URL is still unconfirmed: screenshots expose only a
+truncated address. GitHub's available fetch interface did not allow deployment
+listing. A prior suggested subdomain is not evidence of the actual deployed URL.
+To complete the single live acceptance pass, obtain the full URL from the
+currently used test app's address bar; no service-account private key is needed.

@@ -179,17 +179,22 @@ def check_password():
     st.markdown("<h1 style='text-align: center; color: #9B3E59;'>🌸 May Bloom Login</h1>", unsafe_allow_html=True)
     col1, col2, col3 = st.columns([1,2,1])
     with col2:
-        st.info("Please sign in to access your tracker.")
-        username = st.text_input("Username", key="login_user")
-        password = st.text_input("Password", type="password", key="login_pass")
-        
-        if st.button("🌸 Log In", key="login_btn", use_container_width=True):
+        st.info("请使用老师提供的账号登入 · Sign in with the account provided by your coach.")
+        with st.form("login_form"):
+            username = st.text_input("账号 · Username", key="login_user")
+            password = st.text_input("密码 · Password", type="password", key="login_pass")
+            submitted = st.form_submit_button("登入 · Log in", use_container_width=True, type="primary", key="login_btn")
+        if submitted:
+            username = username.strip()
             if username in st.secrets["passwords"] and password == st.secrets["passwords"][username]:
                 st.session_state["logged_in"] = True
                 st.session_state["username"] = username
+                st.session_state.pop("login_pass", None)
+                st.session_state.pop("login_user", None)
                 st.rerun()
             else:
-                st.error("Incorrect username or password.")
+                st.error("账号或密码不正确，请重新输入。 Incorrect username or password; please retry.")
+        st.caption("账号由老师提供。如忘记密码，请联系老师。 Accounts are provided by your coach; contact your coach if you forget your password.")
     return False
 
 if not check_password():
