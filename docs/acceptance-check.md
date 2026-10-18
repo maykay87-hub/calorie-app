@@ -4,7 +4,7 @@ The test branch is `tracker-v2/mobile-entry-session-fixes`. Production main is u
 
 ## Automated checks
 
-100 tests pass, including 22 real Streamlit AppTest scenarios.
+102 tests pass, including 23 real Streamlit AppTest scenarios.
 
 Real Streamlit AppTest executes the complete application against in-memory Google Sheets doubles. It covers search changes, package-label input, missing values, serving and meal edits, individual deletion, shrinking entry lists, exercise duration edits, negative net energy, saving and fresh-session restore, separate date drafts, opening a day from history, logout and switching accounts, legacy replacement protection, failed-save retry, and profile failure/recovery and persistence. Pure unit tests separately verify per-record nutrient scaling, provenance, schema handling, empty gspread sheets, partial protein totals, latest-row history, and account/date separation.
 
@@ -88,3 +88,12 @@ steps as a convenience. Exercise minutes accept any positive whole minute; the
 five-minute step does not restrict typed values. Defaults remain one serving and
 30 minutes. A full AppTest records a quarter-serving meal and ten-minute exercise,
 then saves and restores identical nutrient snapshots in a fresh session.
+
+## Unsaved-date navigation
+
+A collapsed list shows the signed-in account's loaded drafts that differ from
+their saved snapshots, including a cleared saved day. Open another pending date
+without losing the current draft. Saving or undoing back to the saved contents
+removes that date from the list. Drafts remain session-only, not a replacement
+for Save day. Tests cover account isolation and returning to a pending day,
+saving it and removing its reminder.

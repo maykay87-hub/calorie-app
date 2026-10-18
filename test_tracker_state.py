@@ -78,5 +78,23 @@ class DraftIsolationTests(unittest.TestCase):
         self.assertEqual(state["food_log"], [])
 
 
+class PendingDatesTests(unittest.TestCase):
+    def test_scope_loaded_state_and_saved_clear(self):
+        from tracker_state import pending_dates, daily_signature
+        state = {}
+        for owner, day in [('a', '2026-10-17'), ('a', '2026-10-18'), ('b', '2026-10-17')]:
+            draft = select_draft(state, owner, day)
+            draft.update(loaded=True, saved_signature=daily_signature([], []))
+            draft['food_log'].append({'Food': 'Rice'})
+        self.assertEqual(pending_dates(state, 'a'), ['2026-10-17', '2026-10-18'])
+        first = state['daily_drafts'][('a', '2026-10-17')]
+        first['saved_signature'] = daily_signature(first['food_log'], [])
+        self.assertEqual(pending_dates(state, 'a'), ['2026-10-18'])
+        first['food_log'].clear()
+        self.assertIn('2026-10-17', pending_dates(state, 'a'))
+        first['loaded'] = False
+        self.assertEqual(pending_dates(state, 'a'), ['2026-10-18'])
+
+
 if __name__ == "__main__":
     unittest.main()

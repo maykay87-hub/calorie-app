@@ -44,3 +44,11 @@ def undo_entries(draft, kind):
         return False
     draft[kind + "_log"][:] = history.pop()
     return True
+
+
+def pending_dates(state, username):
+    """Loaded, changed drafts for this account only; include cleared saved days."""
+    return sorted(day for (owner, day), draft in state.get("daily_drafts", {}).items()
+                  if owner == username and draft.get("loaded")
+                  and daily_signature(draft["food_log"], draft["exercise_log"])
+                  != draft.get("saved_signature"))

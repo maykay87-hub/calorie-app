@@ -362,3 +362,17 @@ class AppFlowTests(unittest.TestCase):
         restored = self.new_app()
         self.assertEqual(restored.session_state['food_log'][0], food)
         self.assertEqual(restored.session_state['exercise_log'][0], exercise)
+
+    def test_pending_day_navigation_preserves_draft_and_clears_after_save(self):
+        day = self.at.date_input(key='entry_date').value
+        self.button('添加饮食').click().run()
+        food = self.at.session_state['food_log'][0].copy()
+        self.assertTrue(self.at.button(key=f'pending_day_{day}').disabled)
+        self.at.date_input(key='entry_date').set_value(day - timedelta(days=1)).run()
+        self.assertEqual(self.at.session_state['food_log'], [])
+        self.at.button(key=f'pending_day_{day}').click().run()
+        self.assertEqual(self.at.date_input(key='entry_date').value, day)
+        self.assertEqual(self.at.session_state['food_log'], [food])
+        self.at.button(key='save_bottom_food').click().run()
+        self.assertFalse(self.at.exception)
+        self.assertFalse(any(x.key == f'pending_day_{day}' for x in self.at.button))

@@ -6,7 +6,7 @@ from oauth2client.service_account import ServiceAccountCredentials
 from datetime import date, datetime
 from zoneinfo import ZoneInfo
 from time import monotonic
-from tracker_state import logout, select_draft, daily_signature, change_entries, undo_entries
+from tracker_state import logout, select_draft, daily_signature, change_entries, undo_entries, pending_dates
 from entry_editor import rescale_food, rescale_exercise, nutrient_coverage
 from label_entry import make_label_entry, entry_amount_label
 from label_library import load_personal_labels, remember_label, template_key, reuse_label
@@ -521,6 +521,15 @@ if daily_signature(st.session_state.food_log, st.session_state.exercise_log) != 
     st.warning("有未保存的修改 · Unsaved changes")
 elif st.session_state.pop("daily_save_notice", None) == str(entry_date):
     st.success(f"已保存 Saved · {entry_date}")
+
+pending = pending_dates(st.session_state, st.session_state["username"])
+if pending:
+    with st.expander(f"待保存日期 · Unsaved days ({len(pending)})"):
+        st.caption("仅保留在本次登入中。请分别打开日期并保存，离开或刷新前完成。 These drafts are kept only in this session; open each day and save before leaving or refreshing.")
+        for pending_day in pending:
+            st.button(f"继续填写 · Continue {pending_day}", key=f"pending_day_{pending_day}",
+                      on_click=open_history_day, args=(pending_day,),
+                      disabled=pending_day == str(entry_date), use_container_width=True)
 
 # --- SAVE TO CLOUD BUTTON ---
 if draft.get("conflict"):
