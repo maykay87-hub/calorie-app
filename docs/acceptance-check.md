@@ -1,6 +1,6 @@
 # May Bloom test release — consolidated acceptance
 
-The test branch is tracker-v 2/mobile-entry-session-fixes. Production main is unchanged.
+The test branch is `tracker-v2/mobile-entry-session-fixes`. Production main is unchanged.
 
 ## Automated checks
 
