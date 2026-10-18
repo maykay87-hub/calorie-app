@@ -31,6 +31,11 @@ def reference_database():
             for key, item in REFERENCE_RECORDS.items()}
 
 
+def reference_portion(item):
+    """Preserve published volume units; never treat ml as grams."""
+    return item.get("portion_amount", item["weight_g"]), item.get("portion_unit", "g")
+
+
 def format_energy(value):
     """Keep half-serving energy visible instead of truncating it to an integer."""
     return f"{float(value):,.1f}".rstrip("0").rstrip(".")
@@ -48,6 +53,7 @@ def make_food_entry(database, food_id, meal, quantity):
     reference = REFERENCE_RECORDS.get(food_id)
     if reference:
         if reference.get("source_id") == "hpb_sgfoodid":
+            amount, unit = reference_portion(reference)
             entry["Source"] = {
                 "status": "published_nutrition_reference", "title": SG_SOURCE["title"],
                 "url": reference["source_url"], "food_code": reference["food_code"],
@@ -55,8 +61,14 @@ def make_food_entry(database, food_id, meal, quantity):
                 "method": reference["method"], "original_name": reference["original_name"],
                 "weight_g_per_serving": reference["weight_g"],
                 "edible_portion_percent": reference["edible_portion_percent"],
-                "per_100g": deepcopy(reference["per_100g"]),
+                "amount_per_serving": amount, "portion_unit": unit,
+                "portion_basis": reference.get("portion_basis", "published_default_portion"),
             }
+            if reference.get("provider_default_portion"):
+                entry["Source"]["provider_default_portion"] = reference["provider_default_portion"]
+                entry["Source"]["provider_edible_portion_percent"] = reference["provider_edible_portion_percent"]
+            basis = "per_100ml" if unit == "ml" else "per_100g"
+            entry["Source"][basis] = deepcopy(reference[basis])
             return entry
         entry["Source"] = {
             "status": "published_energy_reference", "title": SOURCE["title"],

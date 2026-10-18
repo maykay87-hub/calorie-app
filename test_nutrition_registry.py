@@ -3,7 +3,7 @@ import json
 import math
 import unittest
 from nutrition_registry import (SOURCE, REFERENCE_RECORDS, HIDDEN_LEGACY_IDS,
-                                 reference_database, make_food_entry, format_energy)
+                                 reference_database, reference_portion, make_food_entry, format_energy)
 from food_catalogue import filter_foods, food_label
 from tracker_storage import load_day, save_day, HEADERS
 from test_tracker_storage import Sheet
@@ -14,10 +14,12 @@ class ReferenceFoodTests(unittest.TestCase):
         self.database = reference_database()
 
     def test_reference_manifest_has_traceable_portions_and_explicit_missing_macros(self):
-        self.assertEqual(len(REFERENCE_RECORDS), 65)
+        self.assertEqual(len(REFERENCE_RECORDS), 103)
         for key, item in REFERENCE_RECORDS.items():
             with self.subTest(food=key):
-                self.assertGreater(item["weight_g"], 0)
+                amount, unit = reference_portion(item)
+                self.assertGreater(amount, 0)
+                self.assertIn(unit, ['g', 'ml'])
                 self.assertGreater(item["energy_kcal"], 0)
                 self.assertTrue(math.isfinite(item["energy_kcal"]))
                 if item.get("source_id") != "hpb_sgfoodid":
@@ -54,22 +56,54 @@ class ReferenceFoodTests(unittest.TestCase):
 
     def test_sg_complete_meals_keep_nutrients_portion_and_region_together(self):
         records = [x for x in REFERENCE_RECORDS.values() if x.get("source_id") == "hpb_sgfoodid"]
-        self.assertEqual(len(records), 19)
+        self.assertEqual(len(records), 57)
         for item in records:
             with self.subTest(food=item["food_code"]):
-                edible = item["weight_g"] * item["edible_portion_percent"] / 100
+                amount, unit = reference_portion(item)
+                edible = amount * item["edible_portion_percent"] / 100
+                raw = item['per_100ml'] if unit == 'ml' else item['per_100g']
                 for raw_key, key in [("energy", "energy_kcal"), ("protein", "protein_g"), ("carbohydrate", "carbs_g"), ("fat", "fat_g")]:
                     tolerance = .5 * edible / 100 + .5 if raw_key == "energy" else .005 * edible / 100 + .005
-                    self.assertLessEqual(abs(item["per_100g"][raw_key] * edible / 100 - item[key]), tolerance)
+                    self.assertLessEqual(abs(raw[raw_key] * edible / 100 - item[key]), tolerance)
                 entry = make_food_entry(self.database, item["id"], "Lunch", .5)
                 self.assertEqual(entry["Protein"], item["protein_g"] / 2)
                 self.assertEqual(entry["Source"]["region"], "Singapore")
                 self.assertEqual(entry["Source"]["food_code"], item["food_code"])
                 self.assertIn("SG参考", food_label(item["id"]))
-                self.assertIn(item["method"], ["Lab Analysis", "Derived"])
+                self.assertIn(item["method"], ["Lab Analysis", "Derived", "Borrowed", "NIP"])
                 for previous in item["replaces"]:
                     self.assertIn(previous, HIDDEN_LEGACY_IDS)
                     self.assertNotIn(previous, filter_foods(dict(self.database, **{previous: {}})))
+
+    def test_milk_preserves_ml_and_broccoli_uses_explicit_edible_basis(self):
+        milk = next(x for x in REFERENCE_RECORDS.values() if x.get('food_code') == 'F01030010')
+        entry = make_food_entry(self.database, milk['id'], 'Breakfast', 1)
+        self.assertEqual(entry['Source']['portion_unit'], 'ml')
+        self.assertIsNone(entry['Source']['weight_g_per_serving'])
+        self.assertIn('250ml', food_label(milk['id']))
+        self.assertTrue(food_label(milk['id']).endswith('· Low Fat Milk'))
+        self.assertNotIn('per_100g', entry['Source'])
+        broccoli = next(x for x in REFERENCE_RECORDS.values() if x.get('food_code') == 'F14040002')
+        self.assertEqual(broccoli['portion_basis'], 'edible_100g')
+        self.assertEqual(broccoli['energy_kcal'], broccoli['per_100g']['energy'])
+        self.assertEqual(broccoli['edible_portion_percent'], 100)
+
+    def test_dry_and_cooked_oats_have_separate_portions(self):
+        dry = next(x for x in REFERENCE_RECORDS.values() if x.get('food_code') == 'F05080001')
+        cooked = next(x for x in REFERENCE_RECORDS.values() if x.get('food_code') == 'F05080004')
+        self.assertEqual((dry['weight_g'], dry['energy_kcal']), (95, 357))
+        self.assertEqual((cooked['weight_g'], cooked['energy_kcal']), (234, 166))
+        self.assertIn('干', food_label(dry['id']))
+        self.assertIn('煮后', food_label(cooked['id']))
+
+    def test_drink_recipes_and_volumes_are_distinct_without_zero_energy_assumptions(self):
+        by_code = {item.get('food_code'): item for item in REFERENCE_RECORDS.values()}
+        self.assertEqual(reference_portion(by_code['D04020016']), (250, 'ml'))
+        self.assertEqual(reference_portion(by_code['D04020015']), (400, 'ml'))
+        self.assertNotEqual(by_code['D04020016']['energy_kcal'], by_code['D04020015']['energy_kcal'])
+        self.assertGreater(by_code['D09010037']['energy_kcal'], 0)
+        self.assertGreater(by_code['D09010037']['carbs_g'], 0)
+        self.assertEqual(by_code['D02030007']['source_id'], 'hpb_sgfoodid')
 
     def test_half_portion_scales_energy_and_preserves_unknown_macros_and_source(self):
         key = "Wantan Mee Dry (1 plate, 330 g; KKM reference)"

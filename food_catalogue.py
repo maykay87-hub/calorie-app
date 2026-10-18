@@ -1,7 +1,7 @@
 """Bilingual display labels and filters; stable English IDs retain nutrition data."""
 import re
 import unicodedata
-from nutrition_registry import REFERENCE_RECORDS, HIDDEN_LEGACY_IDS
+from nutrition_registry import REFERENCE_RECORDS, HIDDEN_LEGACY_IDS, reference_portion
 
 ALL_FOODS = "全部食物 · All foods"
 RECENT_FOODS = "最近使用 · Recent"
@@ -85,10 +85,11 @@ def food_label(food_id):
     if reference:
         portions = {"1 bowl": "1碗", "1 plate": "1盘", "1 piece": "1片", "1 set": "1份",
                     "1 pack": "1包", "1 pot": "1煲", "1 scoop": "1勺", "1 cup": "1杯"}
-        portion = portions.get(reference["portion"], reference["portion"])
-        name = food_id.rsplit(" (", 1)[0]
+        portion = reference.get("portion_zh", portions.get(reference["portion"], reference["portion"]))
+        name = food_id.split(" (" + reference["portion"] + ",", 1)[0]
         region = "，SG参考" if reference.get("source_id") == "hpb_sgfoodid" else ""
-        return f"{reference['zh']}（{portion}，{reference['weight_g']:g}g{region}） · {name}"
+        amount, unit = reference_portion(reference)
+        return f"{reference['zh']}（{portion}，{amount:g}{unit}{region}） · {name}"
     metadata = FOOD_META.get(food_id)
     return f"{metadata[0]} · {food_id}" if metadata else food_id
 

@@ -154,6 +154,7 @@ class AppFlowTests(unittest.TestCase):
         self.assertFalse(self.at.exception)
         self.assertEqual(self.at.session_state['food_log'], [])
         self.assertEqual(self.at.session_state['username'], 'another')
+        self.assertEqual(self.at.session_state['personal_labels'], [])
 
     def test_exercise_edit_and_delete_recalculate_net(self):
         self.add_package()
@@ -244,3 +245,53 @@ class AppFlowTests(unittest.TestCase):
         self.at.button(key='save_bottom_food').click().run()
         restored = self.new_app()
         self.assertEqual(restored.session_state['food_log'][0], entry)
+
+    def test_saved_package_can_be_reused_on_another_date_without_retyping_label(self):
+        self.add_package()
+        self.at.button(key='save_bottom_food').click().run()
+        self.at = self.new_app()
+        other = self.at.date_input(key='entry_date').value - timedelta(days=1)
+        self.at.date_input(key='entry_date').set_value(other).run()
+        self.assertFalse(self.at.exception)
+        self.assertEqual(self.at.session_state['food_log'], [])
+        self.number('这次食用量').set_value(50.0)
+        self.button('添加我的食品').click().run()
+        self.assertFalse(self.at.exception)
+        self.assertEqual(self.at.session_state['food_log'][0]['Calories'], 120)
+        self.assertEqual(self.at.session_state['food_log'][0]['Protein'], 5)
+        self.assertIsNone(self.at.session_state['food_log'][0]['Carbs'])
+
+    def test_personal_label_is_searchable_and_uses_label_provenance(self):
+        self.add_package()
+        self.at.text_input(key='food_search').set_value('Wholemeal bread').run()
+        selected = next(key for key in self.at.session_state['personal_labels'] if key['Source']['product_name'] == 'Wholemeal bread')
+        self.at.selectbox(key='selected_food_id').set_value(selected['Food']).run()
+        self.number('食用量 · Amount eaten').set_value(20.0)
+        self.button('添加饮食').click().run()
+        self.assertFalse(self.at.exception)
+        added = self.at.session_state['food_log'][-1]
+        self.assertEqual(added['Calories'], 48)
+        self.assertEqual(added['Source']['status'], 'user_entered_package_label')
+
+    def test_volume_reference_renders_and_saves_without_treating_ml_as_grams(self):
+        self.at.text_input(key='food_search').set_value('low fat milk').run()
+        self.assertFalse(self.at.exception)
+        self.assertIn('250 ml', self.at.selectbox(key='selected_food_id').value)
+        self.button('添加饮食').click().run()
+        self.assertFalse(self.at.exception)
+        entry = self.at.session_state['food_log'][0]
+        self.assertEqual(entry['Calories'], 118)
+        self.assertEqual(entry['Protein'], 8.7)
+        self.assertEqual(entry['Source']['portion_unit'], 'ml')
+        self.assertIsNone(entry['Source']['weight_g_per_serving'])
+
+    def test_no_added_sugar_milk_coffee_keeps_its_published_energy(self):
+        self.at.text_input(key='food_search').set_value('kopi c kosong').run()
+        self.assertFalse(self.at.exception)
+        self.assertIn('Kopi C Kosong', self.at.selectbox(key='selected_food_id').value)
+        self.button('添加饮食').click().run()
+        self.assertFalse(self.at.exception)
+        entry = self.at.session_state['food_log'][0]
+        self.assertEqual(entry['Calories'], 93)
+        self.assertEqual(entry['Carbs'], 12.1)
+        self.assertEqual(entry['Source']['portion_unit'], 'ml')

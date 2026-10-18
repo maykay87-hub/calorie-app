@@ -31,14 +31,14 @@ class FoodCatalogueTests(unittest.TestCase):
             self.assertIn(FOOD_META[key][1], CATEGORIES)
 
     def test_search_supports_chinese_and_case_insensitive_english(self):
-        self.assertIn("Rice (1/2 cup)", filter_foods(self.database, query="白饭"))
-        self.assertIn("Rice (1/2 cup)", filter_foods(self.database, query=" RICE "))
+        self.assertIn("White Rice Cooked (1 bowl, 200 g; HPB SG reference)", filter_foods(self.database, query="白饭"))
+        self.assertIn("White Rice Cooked (1 bowl, 200 g; HPB SG reference)", filter_foods(self.database, query=" RICE "))
         self.assertEqual(filter_foods(self.database, query="not-a-food"), [])
 
     def test_typed_food_search_works_across_any_browse_category(self):
         fruit = next(category for category in CATEGORIES if "Fruit" in category)
-        self.assertIn("Apple (1 small)", filter_foods(self.database, fruit))
-        self.assertIn("Rice (1/2 cup)", filter_foods(self.database, fruit, "Rice"))
+        self.assertTrue(any('Apple Red' in key for key in filter_foods(self.database, fruit)))
+        self.assertIn("White Rice Cooked (1 bowl, 200 g; HPB SG reference)", filter_foods(self.database, fruit, "Rice"))
         grains = CATEGORIES[0]
         self.assertIn("Nasi Lemak Basic (1 plate, 230 g; KKM reference)", filter_foods(self.database, grains, "Nasi lemak"))
         self.assertIn("Nasi Lemak Basic (1 plate, 230 g; KKM reference)", filter_foods(self.database, RECENT_FOODS, "nasi lemak", recent=[]))
@@ -56,8 +56,9 @@ class FoodCatalogueTests(unittest.TestCase):
         self.assertEqual(original, ["Egg (1 whole)", "Rice (1/2 cup)"])
         self.assertEqual(len(remember_food(list(self.database), "new", limit=8)), 8)
         self.assertEqual(filter_foods(self.database, RECENT_FOODS,
-                                     recent=["unknown", "Egg (1 whole)", "Egg (1 whole)"]),
-                         ["Egg (1 whole)"])
+                                     recent=["unknown", "Egg (1 whole)", "Egg (1 whole)"]), [])
+        current_egg = next(key for key in self.database if key.startswith('Chicken Egg Hard Boiled ('))
+        self.assertEqual(filter_foods(self.database, RECENT_FOODS, recent=[current_egg, current_egg]), [current_egg])
 
     def test_phone_search_accepts_reordered_words_and_missing_spaces(self):
         nasi = "Nasi Lemak Basic (1 plate, 230 g; KKM reference)"

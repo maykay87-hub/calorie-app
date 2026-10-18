@@ -9,10 +9,11 @@ from time import monotonic
 from tracker_state import logout, select_draft, daily_signature
 from entry_editor import rescale_food, rescale_exercise, nutrient_coverage
 from label_entry import make_label_entry, entry_amount_label
+from label_library import load_personal_labels, remember_label, template_key, reuse_label
 from tracker_storage import load_day, save_day
 from tracker_history import load_history
 from profile_storage import ACTIVITIES, load_profile, save_profile
-from nutrition_registry import SOURCE, SG_SOURCE, REFERENCE_RECORDS, reference_database, make_food_entry, format_energy
+from nutrition_registry import SOURCE, SG_SOURCE, REFERENCE_RECORDS, reference_database, reference_portion, make_food_entry, format_energy
 from food_catalogue import ALL_FOODS, RECENT_FOODS, CATEGORIES, MEAL_LABELS, food_label, filter_foods, remember_food
 
 # --- 1. APP CONFIGURATION ---
@@ -527,6 +528,41 @@ if st.button("保存当天记录 · Save", type="primary", use_container_width=T
 tab1, tab2, tab3 = st.tabs(["饮食 Food", "运动 Exercise", "历史 History"])
 
 with tab1:
+    if st.session_state.get("label_library_user") != st.session_state["username"]:
+        try:
+            personal_labels = load_personal_labels(get_sheet_connection("main"), st.session_state["username"])
+        except Exception:
+            logging.getLogger(__name__).exception("Optional personal labels unavailable")
+            personal_labels = st.session_state.get("personal_labels", [])
+        else:
+            st.session_state["label_library_user"] = st.session_state["username"]
+        for entry in st.session_state.food_log:
+            personal_labels = remember_label(personal_labels, entry)
+        st.session_state["personal_labels"] = personal_labels
+    personal_labels = st.session_state.get("personal_labels", [])
+    personal_by_food = {item["Food"]: item for item in personal_labels}
+    food_database.update({name: {"Cals": item["Calories"], "Prot": item["Protein"],
+                                "Carbs": item["Carbs"], "Fat": item["Fat"]}
+                          for name, item in personal_by_food.items()})
+    if personal_labels:
+        with st.expander("我的包装食品 · My label foods"):
+            st.caption("从你已保存的饮食记录恢复；当前新填标签在保存当天记录后可于下次登入使用。 Reuse your own labels. Save the day to keep new labels for your next sign-in.")
+            templates = {template_key(item): item for item in personal_labels}
+            if st.session_state.get("personal_label_choice") not in templates:
+                st.session_state["personal_label_choice"] = next(iter(templates))
+            personal_choice = st.selectbox("选择我的食品 · My food", list(templates),
+                format_func=lambda key: templates[key]["Food"], key="personal_label_choice")
+            template = templates[personal_choice]
+            label_source = template["Source"]
+            unit_label = "份 · Serving" if label_source["label_unit"] == "serving" else label_source["label_unit"]
+            with st.form(f"reuse_label_{entry_date}_{personal_choice}"):
+                reuse_meal = st.selectbox("餐次 · Meal", list(MEAL_LABELS), format_func=MEAL_LABELS.get)
+                reuse_amount = st.number_input(f"这次食用量 · Amount eaten ({unit_label})", min_value=0.1,
+                    value=float(label_source["label_amount"]), step=1.0)
+                reuse_add = st.form_submit_button("添加我的食品 · Add my food", use_container_width=True)
+            if reuse_add:
+                st.session_state.food_log.append(reuse_label(template, reuse_meal, reuse_amount))
+                st.rerun()
     query = st.text_input(
         "吃了什么？ · Search food", placeholder="直接输入：nasi lemak、鸡饭、炒面",
         key="food_search",
@@ -553,22 +589,33 @@ with tab1:
             "食物 · Food", choices, format_func=food_label, key="selected_food_id"
         )
         reference = REFERENCE_RECORDS.get(food)
+        personal_food = personal_by_food.get(food)
+        if personal_food:
+            label_source = personal_food["Source"]
+            st.caption(f"我的包装标签 · My package label: {label_source['label_amount']:g} {label_source['label_unit']} · {format_energy(personal_food['Calories'])} kcal")
         if reference:
-            st.caption(f"参考1份 · Reference serving: {reference['weight_g']:g} g · {reference['energy_kcal']:g} kcal")
+            amount, unit = reference_portion(reference)
+            st.caption(f"参考1份 · Reference serving: {amount:g} {unit} · {reference['energy_kcal']:g} kcal")
             if reference.get("source_id") == "hpb_sgfoodid":
-                st.caption("新加坡 HPB 餐食参考；配方与本地摊位可能不同。 Singapore meal reference; local recipes and portions vary.")
+                st.caption("新加坡 HPB 食物参考；品种、品牌和做法可能不同。 Singapore food reference; varieties, brands and recipes vary.")
         selected_protein = food_database[food]["Prot"]
         if selected_protein is None:
             st.caption("每份蛋白质：暂缺资料 · Protein per serving: unavailable")
         else:
             st.caption(f"每份蛋白质 · Protein per serving: {format_energy(selected_protein)} g（参考估算）")
         with st.expander("份量与资料来源 · Portion & source"):
-            if reference and reference.get("source_id") == "hpb_sgfoodid":
+            if personal_food:
+                st.caption("你填写的包装标签资料，尚未独立核实。 Your own package-label values; not independently verified.")
+            elif reference and reference.get("source_id") == "hpb_sgfoodid":
                 st.markdown(f"[{SG_SOURCE['title']}]({reference['source_url']})")
                 st.write(reference["original_name"])
                 st.write(reference["description"])
-                st.caption(f"食物编号 · Food code: {reference['food_code']} · Data year: {reference['data_year']} · {reference['method']}")
-                st.caption("热量与营养值来自同一餐食记录，按来源的参考份量呈现。 Energy and nutrients use the same source record and serving.")
+                method_label = {"Lab Analysis": "实测资料 · Lab Analysis", "Derived": "推算资料 · Derived",
+                                "Borrowed": "引用资料 · Borrowed", "NIP": "标签资料 · NIP"}.get(reference["method"], reference["method"])
+                st.caption(f"食物编号 · Food code: {reference['food_code']} · Data year: {reference['data_year']} · {method_label}")
+                st.caption("热量与营养值来自同一食物记录。 Energy and nutrients use the same source record.")
+                if reference.get("portion_basis") == "edible_100g":
+                    st.caption("此项采用来源公布的每100g可食部数值。 This entry uses the published 100g edible basis.")
                 if reference["edible_portion_percent"] < 100:
                     st.caption("来源重量包括不可食部；营养值已按来源的可食部分计算。 Source weight includes inedible parts; published nutrients already account for the edible portion.")
             elif reference:
@@ -590,8 +637,14 @@ with tab1:
             meal = st.selectbox(
                 "餐次 · Meal", list(MEAL_LABELS), format_func=MEAL_LABELS.get
             )
-            qty = st.selectbox("份数 · Servings", [0.5, 1.0, 1.5, 2.0, 2.5, 3.0], index=1)
-            st.caption("1份 = 上方标示份量；吃半份请选择0.5。 One serving follows the portion above.")
+            if personal_food:
+                label_source = personal_food["Source"]
+                personal_amount = st.number_input(f"食用量 · Amount eaten ({label_source['label_unit']})",
+                    min_value=0.1, value=float(label_source["label_amount"]), step=1.0,
+                    key=f"personal_search_amount_{template_key(personal_food)}")
+            else:
+                qty = st.selectbox("份数 · Servings", [0.5, 1.0, 1.5, 2.0, 2.5, 3.0], index=1)
+                st.caption("1份 = 上方标示份量；吃半份请选择0.5。 One serving follows the portion above.")
             add_meal = st.form_submit_button("添加饮食 · Add meal", type="primary", use_container_width=True)
     elif category == RECENT_FOODS and not query.strip() and not st.session_state.get("recent_food_names"):
         st.info("还没有最近使用的食物，请先选其他分类添加。 No recent foods yet; choose another category to start.")
@@ -602,7 +655,11 @@ with tab1:
         st.session_state["recent_food_names"] = remember_food(
             st.session_state.get("recent_food_names", []), food
         )
-        st.session_state.food_log.append(make_food_entry(food_database, food, meal, qty))
+        if personal_by_food.get(food):
+            added_food = reuse_label(personal_by_food[food], meal, personal_amount)
+        else:
+            added_food = make_food_entry(food_database, food, meal, qty)
+        st.session_state.food_log.append(added_food)
         st.rerun()
 
     with st.expander("找不到包装食品？按标签添加 · Add from package label"):
@@ -630,6 +687,7 @@ with tab1:
                 st.error(str(exc))
             else:
                 st.session_state.food_log.append(label_entry)
+                st.session_state["personal_labels"] = remember_label(st.session_state.get("personal_labels", []), label_entry)
                 st.rerun()
 
     if st.session_state.food_log:
