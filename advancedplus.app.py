@@ -3,13 +3,16 @@ import pandas as pd
 import gspread
 import logging
 from oauth2client.service_account import ServiceAccountCredentials
-from datetime import date
+from datetime import date, datetime
+from zoneinfo import ZoneInfo
+from time import monotonic
 from tracker_state import logout, select_draft, daily_signature
 from entry_editor import rescale_food, rescale_exercise, nutrient_coverage
 from label_entry import make_label_entry, entry_amount_label
 from tracker_storage import load_day, save_day
+from tracker_history import load_history
 from profile_storage import ACTIVITIES, load_profile, save_profile
-from nutrition_registry import SOURCE, REFERENCE_RECORDS, reference_database, make_food_entry, format_energy
+from nutrition_registry import SOURCE, SG_SOURCE, REFERENCE_RECORDS, reference_database, make_food_entry, format_energy
 from food_catalogue import ALL_FOODS, RECENT_FOODS, CATEGORIES, MEAL_LABELS, food_label, filter_foods, remember_food
 
 # --- 1. APP CONFIGURATION ---
@@ -25,27 +28,38 @@ def get_sheet_connection(type="main", create=False):
     type="main" -> Returns the FIRST tab (your data logs)
     type="feedback" -> Returns the 'feedback' tab
     """
-    scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-    creds = ServiceAccountCredentials.from_json_keyfile_dict(dict(st.secrets["service_account"]), scope)
-    client = gspread.authorize(creds)
-    
-    spreadsheet = client.open_by_key(SPREADSHEET_ID)
+    # Reuse this sign-in's connection rather than authenticating on each widget
+    # change. Logout clears it; a short TTL also picks up updated configuration.
+    connection = st.session_state.get("sheet_connection")
+    if not connection or connection["id"] != SPREADSHEET_ID or monotonic() - connection["time"] > 300:
+        scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+        creds = ServiceAccountCredentials.from_json_keyfile_dict(dict(st.secrets["service_account"]), scope)
+        client = gspread.authorize(creds)
+        connection = {"id": SPREADSHEET_ID, "time": monotonic(),
+                      "spreadsheet": client.open_by_key(SPREADSHEET_ID), "worksheets": {}}
+        st.session_state["sheet_connection"] = connection
+    spreadsheet = connection["spreadsheet"]
+    if type in connection["worksheets"]:
+        return connection["worksheets"][type]
     
     if type == "profiles":
         try:
-            return spreadsheet.worksheet("profiles")
+            sheet = spreadsheet.worksheet("profiles")
         except gspread.WorksheetNotFound:
             if create:
-                return spreadsheet.add_worksheet(title="profiles", rows=100, cols=5)
-            return None
-    if type == "feedback":
+                sheet = spreadsheet.add_worksheet(title="profiles", rows=100, cols=5)
+            else:
+                return None
+    elif type == "feedback":
         try:
-            return spreadsheet.worksheet("feedback")
-        except:
+            sheet = spreadsheet.worksheet("feedback")
+        except gspread.WorksheetNotFound:
             return None # Feedback tab doesn't exist
     else:
         # "get_worksheet(0)" always grabs the first tab
-        return spreadsheet.get_worksheet(0)
+        sheet = spreadsheet.get_worksheet(0)
+    connection["worksheets"][type] = sheet
+    return sheet
 
 def format_log_to_string(log_list, type="food"):
     if not log_list: return "None"
@@ -71,10 +85,16 @@ def save_daily_summary(selected_date, food_log, exercise_log, net_calories):
         draft_saved = st.session_state["daily_drafts"][(st.session_state["username"], str(selected_date))]
         draft_saved["saved_signature"] = daily_signature(food_log, exercise_log)
         st.session_state["daily_save_notice"] = str(selected_date)
+        st.session_state.pop("history_cache", None)
         return True
-    except Exception as e:
-        st.error(f"Error saving to cloud: {e}")
+    except Exception:
+        logging.getLogger(__name__).exception("Daily save failed")
+        st.error("保存未确认，输入仍留在本次会话。请重试保存，暂时不要关闭或刷新页面。 Save was not confirmed. Your draft remains here; retry before closing or refreshing.")
         return False
+
+
+def open_history_day(day):
+    st.session_state["entry_date"] = date.fromisoformat(day)
 
 def report_profile_error(exc, stage):
     logging.getLogger(__name__).exception("Profile failed at %s", stage)
@@ -146,7 +166,7 @@ def check_password():
     if st.session_state["logged_in"]:
         return True
 
-    st.markdown("<h1 style='text-align: center; color: #FF69B4;'>🌸 May Bloom Login</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align: center; color: #9B3E59;'>🌸 May Bloom Login</h1>", unsafe_allow_html=True)
     col1, col2, col3 = st.columns([1,2,1])
     with col2:
         st.info("Please sign in to access your tracker.")
@@ -270,7 +290,7 @@ st.markdown("""
 # --- DAILY DRAFT ---
 st.subheader("✿ May Bloom")
 st.caption("Lifestyle Tracker · 生活记录")
-entry_date = st.date_input("📅 Date of Entry", date.today())
+entry_date = st.date_input("日期 · Date of entry", datetime.now(ZoneInfo("Asia/Kuala_Lumpur")).date(), key="entry_date")
 draft = select_draft(st.session_state, st.session_state["username"], entry_date)
 if not draft.get("loaded"):
     try:
@@ -438,13 +458,13 @@ with st.sidebar:
 # Calculate Totals
 if st.session_state.food_log:
     f_df = pd.DataFrame(st.session_state.food_log)
-    total_intake = f_df["Calories"].sum()
+    total_intake = float(f_df["Calories"].sum())
 else:
     total_intake = 0
 
 if st.session_state.exercise_log:
     e_df = pd.DataFrame(st.session_state.exercise_log)
-    total_burned = e_df["Calories Burned"].sum()
+    total_burned = float(e_df["Calories Burned"].sum())
 else:
     total_burned = 0
 
@@ -535,13 +555,23 @@ with tab1:
         reference = REFERENCE_RECORDS.get(food)
         if reference:
             st.caption(f"参考1份 · Reference serving: {reference['weight_g']:g} g · {reference['energy_kcal']:g} kcal")
+            if reference.get("source_id") == "hpb_sgfoodid":
+                st.caption("新加坡 HPB 餐食参考；配方与本地摊位可能不同。 Singapore meal reference; local recipes and portions vary.")
         selected_protein = food_database[food]["Prot"]
         if selected_protein is None:
             st.caption("每份蛋白质：暂缺资料 · Protein per serving: unavailable")
         else:
             st.caption(f"每份蛋白质 · Protein per serving: {format_energy(selected_protein)} g（参考估算）")
         with st.expander("份量与资料来源 · Portion & source"):
-            if reference:
+            if reference and reference.get("source_id") == "hpb_sgfoodid":
+                st.markdown(f"[{SG_SOURCE['title']}]({reference['source_url']})")
+                st.write(reference["original_name"])
+                st.write(reference["description"])
+                st.caption(f"食物编号 · Food code: {reference['food_code']} · Data year: {reference['data_year']} · {reference['method']}")
+                st.caption("热量与营养值来自同一餐食记录，按来源的参考份量呈现。 Energy and nutrients use the same source record and serving.")
+                if reference["edible_portion_percent"] < 100:
+                    st.caption("来源重量包括不可食部；营养值已按来源的可食部分计算。 Source weight includes inedible parts; published nutrients already account for the edible portion.")
+            elif reference:
                 source_url = SOURCE["url"] + f"#page={reference['pdf_page']}"
                 st.markdown(f"[KKM Bank Kalori · PDF 第{reference['pdf_page']}页]({source_url})")
                 st.write(reference["original_name"])
@@ -622,18 +652,24 @@ with tab1:
                 format_func=lambda i: f"{i + 1}. {MEAL_LABELS.get(food_rows[i]['Meal'], food_rows[i]['Meal'])} · {food_label(food_rows[i]['Food'])} · {entry_amount_label(food_rows[i])}",
                 key=f"food_edit_index_{entry_date}")
             selected = food_rows[edit_index]
+            meal_options = list(MEAL_LABELS)
+            if selected["Meal"] not in meal_options:
+                meal_options.append(selected["Meal"])
             selected_source = selected.get("Source", {})
             label_basis = selected_source.get("label_amount", 1.0) if selected_source.get("status") == "user_entered_package_label" else 1.0
             label_unit = selected_source.get("label_unit", "serving")
             amount_label = f"实际食用量 · Amount eaten ({label_unit})" if label_unit in {"g", "ml"} else "修改份数 · Servings"
             with st.form(f"food_edit_{entry_date}_{edit_index}_{selected['Qty']}"):
+                updated_meal = st.selectbox("修改餐次 · Meal", meal_options,
+                    index=meal_options.index(selected["Meal"]), format_func=lambda value: MEAL_LABELS.get(value, value))
                 new_amount = st.number_input(amount_label, min_value=0.0,
                     value=float(selected["Qty"] * label_basis), step=0.5)
-                update_food = st.form_submit_button("更新份数 · Update servings", use_container_width=True)
+                update_food = st.form_submit_button("更新这一笔 · Update entry", use_container_width=True)
                 delete_food = st.form_submit_button("删除这一笔 · Delete entry", use_container_width=True)
             if update_food:
                 try:
                     food_rows[edit_index] = rescale_food(selected, new_amount / label_basis)
+                    food_rows[edit_index]["Meal"] = updated_meal
                 except ValueError:
                     st.error("食用量必须大于零 · Enter an amount greater than zero.")
                 else:
@@ -660,8 +696,8 @@ with tab1:
 
 with tab2:
     with st.form("add_exercise_form", clear_on_submit=False):
-        ex_name = st.selectbox("Activity Type", list(exercise_database.keys()))
-        ex_minutes = st.selectbox("Duration (minutes)", [15, 30, 45, 60, 75, 90], index=1)
+        ex_name = st.selectbox("运动类型 · Activity", list(exercise_database.keys()))
+        ex_minutes = st.selectbox("时长（分钟） · Duration", [15, 30, 45, 60, 75, 90], index=1)
         add_activity = st.form_submit_button("添加运动 · Add activity", type="primary", use_container_width=True)
 
     if add_activity:
@@ -696,11 +732,11 @@ with tab2:
 
         col_undo, col_clear = st.columns(2)
         with col_undo:
-            if st.button("Undo Last Activity ↩️", use_container_width=True):
+            if st.button("撤销上一笔运动 · Undo activity", use_container_width=True):
                 st.session_state.exercise_log.pop()
                 st.rerun()
         with col_clear:
-            if st.button("Clear All Exercise 🗑️", use_container_width=True):
+            if st.button("清空当天运动 · Clear exercise", use_container_width=True):
                 st.session_state.exercise_log.clear()
                 st.rerun()
 
@@ -711,20 +747,47 @@ with tab2:
 
 with tab3:
     st.subheader("历史记录 · History")
+    st.caption("只显示已保存记录；当前未保存的修改不包括在内。 Saved records only; drafts are excluded.")
+    refresh_history = st.button("更新历史 · Refresh history")
     try:
-        sheet = get_sheet_connection("main")
-        data = sheet.get_all_records()
-        df_history = pd.DataFrame(data)
-        
-        if df_history.empty:
-            st.info("No history found yet. Save your first entry!")
-        elif "username" in df_history.columns:
-            my_history = df_history[df_history["username"] == st.session_state["username"]]
-            if my_history.empty:
-                st.warning("No records found for your username.")
-            else:
-                st.dataframe(my_history.drop(columns=["username", "Food_JSON", "Exercise_JSON"], errors="ignore"), use_container_width=True)
-                if not my_history.empty:
-                    st.line_chart(my_history, x="Date", y="Net_Calories")
-    except Exception as e:
-        st.error(f"Could not load history: {e}")
+        cache = st.session_state.get("history_cache")
+        if refresh_history or not cache or cache["username"] != st.session_state["username"] or monotonic() - cache["time"] > 60:
+            records = load_history(get_sheet_connection("main"), st.session_state["username"])
+            cache = {"username": st.session_state["username"], "time": monotonic(), "records": records}
+            st.session_state["history_cache"] = cache
+        records = cache["records"]
+        if not records:
+            st.info("还没有已保存记录。添加饮食或运动后请保存。 No saved history yet.")
+        else:
+            history = pd.DataFrame(records)
+            display = history[["Date", "Net_Calories"]].copy()
+            protein_labels = []
+            for row in records:
+                if row["status"] != "detailed" or row["missing_protein_entries"] == row["food_entries"] and row["food_entries"]:
+                    protein_labels.append("— 未提供")
+                elif row["missing_protein_entries"]:
+                    protein_labels.append(f"{format_energy(row['known_protein'])} g（部分 · partial）")
+                else:
+                    protein_labels.append(f"{format_energy(row['known_protein'])} g")
+            display["蛋白质 Protein"] = protein_labels
+            st.dataframe(display.rename(columns={"Date": "日期 Date", "Net_Calories": "净热量 Net kcal"}),
+                         use_container_width=True, hide_index=True)
+            chart = history.dropna(subset=["Net_Calories"]).sort_values("Date")
+            if not chart.empty:
+                chart = chart.assign(Date=pd.to_datetime(chart["Date"]))
+                st.line_chart(chart, x="Date", y="Net_Calories")
+            with st.expander("查看某一天 · Daily details"):
+                history_day = st.selectbox("已保存日期 · Saved date", [row["Date"] for row in records], key="history_day")
+                row = next(row for row in records if row["Date"] == history_day)
+                st.write("饮食 Food: " + str(row["Food_Log"]))
+                st.write("运动 Exercise: " + str(row["Exercise_Log"]))
+                if row["status"] == "legacy":
+                    st.caption("旧摘要没有完整营养明细。 Older summaries do not contain full nutrient details.")
+                elif row["status"] == "invalid_details":
+                    st.warning("此日明细格式需检查；原摘要仍保留。 Detailed data needs review; the summary is preserved.")
+                elif row["missing_protein_entries"]:
+                    st.caption(f"蛋白质尚有 {row['missing_protein_entries']} 项缺资料 · foods missing protein data")
+                st.button("打开这一天 · Open day", on_click=open_history_day, args=(history_day,))
+    except Exception:
+        logging.getLogger(__name__).exception("History load failed")
+        st.error("暂时无法读取历史，当前输入仍保留。请稍后更新历史。 History unavailable; your current draft is preserved.")

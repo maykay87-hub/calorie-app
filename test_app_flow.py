@@ -1,11 +1,12 @@
 """Real Streamlit widget flows against in-memory Sheets; no credentials/network."""
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 import importlib.util
 import unittest
 from unittest.mock import patch
-from test_tracker_storage import Sheet, HEADERS
+from test_tracker_storage import Sheet, HEADERS, FOOD
+from tracker_storage import save_day
 from profile_storage import HEADERS as PROFILE_HEADERS
 
 
@@ -18,10 +19,10 @@ class RecordSheet(Sheet):
 class AppFlowTests(unittest.TestCase):
     def setUp(self):
         self.sheet = RecordSheet([HEADERS])
-        profiles = RecordSheet([PROFILE_HEADERS, ['student', '162', '52', 'Sedentary (x25)', '']])
+        self.profiles = RecordSheet([PROFILE_HEADERS, ['student', '162', '52', 'Sedentary (x25)', '']])
         feedback = RecordSheet([['username', 'month', 'note']])
         book = SimpleNamespace(get_worksheet=lambda i: self.sheet,
-                               worksheet=lambda name: profiles if name == 'profiles' else feedback)
+                               worksheet=lambda name: self.profiles if name == 'profiles' else feedback)
         client = SimpleNamespace(open_by_key=lambda key: book)
         self.auth = patch('gspread.authorize', return_value=client)
         self.creds = patch('oauth2client.service_account.ServiceAccountCredentials.from_json_keyfile_dict', return_value=object())
@@ -34,6 +35,7 @@ class AppFlowTests(unittest.TestCase):
         app = AppTest.from_file(str(Path(__file__).with_name('advancedplus.app.py')), default_timeout=15)
         app.secrets['spreadsheet_id'] = 'test-only'
         app.secrets['service_account'] = {}
+        app.secrets['passwords'] = {'student': 'test-pass', 'another': 'other-pass'}
         app.session_state['logged_in'] = True
         app.session_state['username'] = 'student'
         app.run()
@@ -61,7 +63,7 @@ class AppFlowTests(unittest.TestCase):
         self.assertIsNone(self.at.session_state['food_log'][0]['Carbs'])
         self.assertTrue(any('Unsaved' in x.value for x in self.at.warning))
         self.number('实际食用量 ·').set_value(60.0)
-        self.button('更新份数').click().run()
+        self.button('更新这一笔').click().run()
         self.assertFalse(self.at.exception)
         self.assertEqual(self.at.session_state['food_log'][0]['Protein'], 6)
         self.at.button(key='save_bottom_food').click().run()
@@ -78,7 +80,7 @@ class AppFlowTests(unittest.TestCase):
         self.assertEqual(self.at.session_state['food_log'], [])
         self.add_package()
         self.number('实际食用量 ·').set_value(0.0)
-        self.button('更新份数').click().run()
+        self.button('更新这一笔').click().run()
         self.assertFalse(self.at.exception)
         self.assertEqual(self.at.session_state['food_log'][0]['Calories'], 72)
         self.assertTrue(any('greater than zero' in x.value for x in self.at.error))
@@ -95,3 +97,150 @@ class AppFlowTests(unittest.TestCase):
         self.at.text_input(key='food_search').set_value('dry wantan').run()
         self.assertFalse(self.at.exception)
         self.assertIn('Wantan Mee Dry', self.at.selectbox(key='selected_food_id').value)
+
+    def test_date_switch_keeps_separate_drafts_and_history_open_preserves_them(self):
+        self.add_package()
+        first = self.at.date_input(key='entry_date').value
+        other = first - timedelta(days=1)
+        self.at.date_input(key='entry_date').set_value(other).run()
+        self.assertEqual(self.at.session_state['food_log'], [])
+        self.button('添加饮食').click().run()
+        self.at.button(key='save_bottom_food').click().run()
+        self.assertFalse(self.at.exception)
+        self.at.date_input(key='entry_date').set_value(first).run()
+        self.assertEqual(self.at.session_state['food_log'][0]['Calories'], 72)
+        self.button('打开这一天').click().run()
+        self.assertFalse(self.at.exception)
+        self.assertEqual(self.at.date_input(key='entry_date').value, other)
+        self.at.date_input(key='entry_date').set_value(first).run()
+        self.assertEqual(self.at.session_state['food_log'][0]['Calories'], 72)
+
+    def test_failed_save_keeps_draft_and_retry_updates_single_row(self):
+        self.add_package()
+        with patch.object(self.sheet, 'append_row', side_effect=ConnectionError('offline')):
+            self.at.button(key='save_bottom_food').click().run()
+        self.assertFalse(self.at.exception)
+        self.assertEqual(self.at.session_state['food_log'][0]['Calories'], 72)
+        self.assertTrue(any('Save was not confirmed' in x.value for x in self.at.error))
+        self.assertTrue(any('Unsaved changes' in x.value for x in self.at.warning))
+        self.at.button(key='save_bottom_food').click().run()
+        self.at.button(key='save_bottom_food').click().run()
+        self.assertFalse(self.at.exception)
+        self.assertEqual(len(self.sheet.rows), 2)
+
+    def test_retry_after_lost_save_ack_does_not_append_duplicate(self):
+        self.add_package()
+        append = self.sheet.append_row
+        def write_then_timeout(*args, **kwargs):
+            append(*args, **kwargs)
+            raise TimeoutError('Acknowledgement was lost')
+        with patch.object(self.sheet, 'append_row', side_effect=write_then_timeout):
+            self.at.button(key='save_bottom_food').click().run()
+        self.assertFalse(self.at.exception)
+        self.assertEqual(len(self.sheet.rows), 2)
+        self.at.button(key='save_bottom_food').click().run()
+        self.assertFalse(self.at.exception)
+        self.assertEqual(len(self.sheet.rows), 2)
+
+    def test_logout_login_does_not_show_previous_accounts_data(self):
+        self.add_package()
+        self.button('Log Out').click().run()
+        self.assertFalse(self.at.exception)
+        with self.assertRaises(KeyError):
+            self.at.session_state['food_log']
+        self.at.text_input(key='login_user').set_value('another')
+        self.at.text_input(key='login_pass').set_value('other-pass')
+        self.at.button(key='login_btn').click().run()
+        self.assertFalse(self.at.exception)
+        self.assertEqual(self.at.session_state['food_log'], [])
+        self.assertEqual(self.at.session_state['username'], 'another')
+
+    def test_exercise_edit_and_delete_recalculate_net(self):
+        self.add_package()
+        self.button('添加运动').click().run()
+        self.assertEqual(len(self.at.session_state['exercise_log']), 1)
+        self.number('运动分钟').set_value(60.0)
+        self.button('更新时长').click().run()
+        self.assertFalse(self.at.exception)
+        self.assertEqual(self.at.session_state['exercise_log'][0]['Duration'], 60)
+        self.at.button(key='save_bottom_exercise').click().run()
+        self.assertLess(float(self.sheet.rows[-1][3]), 0)
+        self.button('删除这一笔运动').click().run()
+        self.assertFalse(self.at.exception)
+        self.assertEqual(self.at.session_state['exercise_log'], [])
+
+    def test_edit_meal_and_remove_last_selected_row_without_widget_error(self):
+        self.add_package()
+        self.button('添加饮食').click().run()
+        edit_key = f"food_edit_index_{self.at.date_input(key='entry_date').value}"
+        self.at.selectbox(key=edit_key).set_value(1).run()
+        self.button('撤销上一笔').click().run()
+        self.assertFalse(self.at.exception)
+        next(x for x in self.at.selectbox if x.label == '修改餐次 · Meal').set_value('Dinner')
+        self.button('更新这一笔').click().run()
+        self.assertFalse(self.at.exception)
+        self.assertEqual(self.at.session_state['food_log'][0]['Meal'], 'Dinner')
+
+    def test_legacy_day_cannot_be_overwritten_without_explicit_choice(self):
+        day = str(self.at.date_input(key='entry_date').value)
+        self.sheet.rows.append([day, 'Original text summary', 'None', '75', 'student'])
+        self.at = self.new_app()
+        self.assertTrue(self.at.button(key='save_bottom_food').disabled)
+        self.add_package()
+        self.assertTrue(self.at.button(key='save_bottom_food').disabled)
+        self.assertEqual(self.sheet.rows[1][1], 'Original text summary')
+        self.at.checkbox(key=f'replace_legacy_{day}').check().run()
+        self.at.button(key='save_bottom_food').click().run()
+        self.assertFalse(self.at.exception)
+        self.assertEqual(len(self.sheet.rows), 2)
+        self.assertIn('Wholemeal bread', self.sheet.rows[1][1])
+
+    def test_profile_failure_does_not_block_daily_save_and_retry_recovers(self):
+        with patch.object(self.profiles, 'get_all_values', side_effect=ValueError('Unexpected profile columns.')):
+            self.at = self.new_app()
+            self.assertTrue(any('Profile error' in x.value for x in self.at.error))
+            self.add_package()
+            self.at.button(key='save_bottom_food').click().run()
+            self.assertFalse(self.at.exception)
+            self.assertEqual(len(self.sheet.rows), 2)
+        self.button('重试读取资料').click().run()
+        self.assertFalse(self.at.exception)
+        self.assertFalse(any('Profile error' in x.value for x in self.at.error))
+        self.assertEqual(self.number('身高').value, 162)
+
+    def test_profile_save_is_restored_without_changing_daily_records(self):
+        self.add_package()
+        self.at.button(key='save_bottom_food').click().run()
+        before = [row[:] for row in self.sheet.rows]
+        self.number('身高').set_value(165.0)
+        self.number('体重').set_value(55.0)
+        self.button('保存个人资料').click().run()
+        self.assertFalse(self.at.exception)
+        restored = self.new_app()
+        self.assertEqual(next(x for x in restored.number_input if x.label.startswith('身高')).value, 165)
+        self.assertEqual(next(x for x in restored.number_input if x.label.startswith('体重')).value, 55)
+        self.assertEqual(self.sheet.rows, before)
+
+    def test_integer_snapshot_and_older_meal_name_can_be_resaved(self):
+        day = self.at.date_input(key='entry_date').value
+        save_day(self.sheet, 'student', day, [dict(FOOD, Meal='Brunch')], [], 75, 'Rice', 'None')
+        self.at = self.new_app()
+        self.assertFalse(self.at.exception)
+        self.at.button(key='save_bottom_food').click().run()
+        self.assertFalse(self.at.exception)
+        self.assertTrue(any('已保存' in x.value for x in self.at.success))
+        self.assertEqual(len(self.sheet.rows), 2)
+
+    def test_whole_meal_protein_reference_survives_half_serving_save_and_reload(self):
+        self.at.text_input(key='food_search').set_value('dry wantan').run()
+        self.assertIn('HPB SG reference', self.at.selectbox(key='selected_food_id').value)
+        next(x for x in self.at.selectbox if x.label == '份数 · Servings').set_value(.5)
+        self.button('添加饮食').click().run()
+        self.assertFalse(self.at.exception)
+        entry = self.at.session_state['food_log'][0]
+        self.assertEqual(entry['Calories'], 312.5)
+        self.assertAlmostEqual(entry['Protein'], 16.86)
+        self.assertEqual(entry['Source']['region'], 'Singapore')
+        self.at.button(key='save_bottom_food').click().run()
+        restored = self.new_app()
+        self.assertEqual(restored.session_state['food_log'][0], entry)

@@ -71,3 +71,35 @@ Validation includes real Streamlit AppTest runs with an in-memory Sheets double:
 label add, validation failure, zero-amount edit rejection, quantity edit, deletion,
 save and restoration in a fresh session, and changes between matching/unmatched
 food searches. No credentials or live Sheets writes are used by these tests.
+
+
+## HPB SG FoodID whole-meal reference update (2026-10-18)
+
+Added19 complete meal records from the Singapore Health Promotion Board's public
+SG FoodID search/details service. These include dry/soup wanton noodles, dry/soup
+ban mian, chilli ban mian, prawn noodles, chicken rice, char kway teow, laksa,
+mee goreng, mee soto and three nasi lemak sets. Each stores its food code, public
+detail URL, original name, reference portion weight, edible portion percentage,
+data year and source method. Sixteen are marked Lab Analysis by the source;
+three2026 nasi lemak sets are marked Derived. Preserve these distinct methods.
+
+Use the provider's published calculated default-portion values for ALL energy and
+macros. Do not attach these macros to KKM energy or mix recipe definitions.
+Validate per100g values against default weight times edible portion, allowing
+rounding of the published base and portion values. This is important for meals
+with bones/shells: multiplying gross weight by edible-basis values directly is
+incorrect. Sources labelled Singapore remain visibly labelled SG reference and
+are not represented as vendor-specific Malaysian analyses.
+
+Eleven superseded selections (nine KKM references and two original estimates)
+remain internally readable but are hidden from new selection. Original records
+and saved snapshots are unchanged. The catalogue now contains130 stable IDs,
+112 selectable entries:19 SG FoodID records,37 visible KKM records, and56 original
+exchange estimates.25 visible references have source-backed full macros
+(19 SG FoodID and6 matched KKM/MyFCD records).31 visible KKM references still have
+unknown macros. Original exchange estimates remain under source review.
+
+Official entrypoint: https://www.hpb.gov.sg/services/
+Public tool: https://pphtpc.hpb.gov.sg/web/sgfoodid/tools/food-search
+Record URLs are stored in data/foods_hpb_sg.json. Chinese preparation descriptions
+are concise paraphrases, not claims of identical Malaysian stall recipes.

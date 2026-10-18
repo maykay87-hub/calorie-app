@@ -30,6 +30,9 @@ def _decode(value, kind):
     for item in items:
         if not isinstance(item, dict) or not required.issubset(item):
             raise ValueError("Saved details are incomplete; no records were changed.")
+        for key in required - numeric:
+            if not isinstance(item[key], str) or not item[key].strip():
+                raise ValueError("Saved entry names are invalid; no records were changed.")
         for key in numeric:
             value = item[key]
             if kind == "food" and key in {"Protein", "Carbs", "Fat"} and value is None:
@@ -37,6 +40,8 @@ def _decode(value, kind):
             if (not isinstance(value, (int, float)) or isinstance(value, bool)
                     or not math.isfinite(value) or value < 0):
                 raise ValueError("Saved amounts are invalid; no records were changed.")
+            if key in {"Qty", "Duration"} and value == 0:
+                raise ValueError("Saved entry amounts must be positive; no records were changed.")
     return items
 
 
@@ -58,6 +63,11 @@ def load_day(sheet, username, day):
 def save_day(sheet, username, day, foods, exercises, net_calories,
              food_summary, exercise_summary, replace_legacy=False):
     # Serialize and validate before any write.
+    if not isinstance(username, str) or not username.strip():
+        raise ValueError("A signed-in account is required.")
+    if (not isinstance(net_calories, (int, float)) or isinstance(net_calories, bool)
+            or not math.isfinite(net_calories)):
+        raise ValueError("Net energy must be a finite number.")
     food_json = json.dumps(foods, ensure_ascii=False, allow_nan=False)
     exercise_json = json.dumps(exercises, ensure_ascii=False, allow_nan=False)
     _decode(food_json, "food")

@@ -25,6 +25,19 @@ class Sheet:
 
 
 class StorageTests(unittest.TestCase):
+    def test_invalid_entry_metadata_and_zero_amounts_are_rejected_before_write(self):
+        for change in [{"Food": []}, {"Meal": ""}, {"Qty": 0}]:
+            sheet = Sheet()
+            before = copy.deepcopy(sheet.rows)
+            with self.assertRaises(ValueError):
+                save_day(sheet, 'alice', '2026-10-18', [dict(FOOD, **change)], [], 75, '', '')
+            self.assertEqual(sheet.rows, before)
+        for net in [float('nan'), float('inf'), True, '75']:
+            sheet = Sheet()
+            with self.assertRaises(ValueError):
+                save_day(sheet, 'alice', '2026-10-18', [FOOD], [], net, '', '')
+            self.assertEqual(sheet.rows, [HEADERS])
+
     def save(self, sheet, user="alice", day="2026-10-18", foods=None, **kwargs):
         return save_day(sheet, user, day, [FOOD] if foods is None else foods,
                         [EXERCISE], -25, "Rice summary", "Yoga summary", **kwargs)

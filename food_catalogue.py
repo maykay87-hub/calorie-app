@@ -87,7 +87,8 @@ def food_label(food_id):
                     "1 pack": "1包", "1 pot": "1煲", "1 scoop": "1勺", "1 cup": "1杯"}
         portion = portions.get(reference["portion"], reference["portion"])
         name = food_id.rsplit(" (", 1)[0]
-        return f"{reference['zh']}（{portion}，{reference['weight_g']:g}g） · {name}"
+        region = "，SG参考" if reference.get("source_id") == "hpb_sgfoodid" else ""
+        return f"{reference['zh']}（{portion}，{reference['weight_g']:g}g{region}） · {name}"
     metadata = FOOD_META.get(food_id)
     return f"{metadata[0]} · {food_id}" if metadata else food_id
 
@@ -126,14 +127,17 @@ def _matches_search(query, searchable):
 def filter_foods(database, category=ALL_FOODS, query="", recent=()):
     query = _search_text(query)
     visible = [key for key in database if key not in HIDDEN_LEGACY_IDS]
-    visible.sort(key=lambda key: key not in REFERENCE_RECORDS)
+    visible.sort(key=lambda key: 0 if REFERENCE_RECORDS.get(key, {}).get("source_id") == "hpb_sgfoodid"
+                 else 1 if key in REFERENCE_RECORDS else 2)
     # A typed food name always searches the entire database. Categories only
     # narrow browsing when the search box is empty.
     if query:
-        return [
+        matches = [
             key for key in visible
             if _matches_search(query, _search_text(food_label(key) + " " + SEARCH_ALIASES.get(key, "")))
         ]
+        matches.sort(key=lambda key: query not in _search_text(food_label(key) + " " + SEARCH_ALIASES.get(key, "")))
+        return matches
     if category == RECENT_FOODS:
         return list(dict.fromkeys(item for item in recent if item in database and item not in HIDDEN_LEGACY_IDS))
     if category == ALL_FOODS:

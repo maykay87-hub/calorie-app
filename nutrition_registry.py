@@ -7,6 +7,9 @@ from pathlib import Path
 _DATA = json.loads((Path(__file__).parent / "data" / "foods_kkm.json").read_text())
 SOURCE = _DATA["source"]
 REFERENCE_RECORDS = {record["id"]: record for record in _DATA["records"]}
+_SG_DATA = json.loads((Path(__file__).parent / "data" / "foods_hpb_sg.json").read_text())
+SG_SOURCE = _SG_DATA["source"]
+REFERENCE_RECORDS.update({record["id"]: record for record in _SG_DATA["records"]})
 
 # Keep these IDs and their saved entries readable, but avoid offering their
 # ambiguous/zero-energy records for new logging when better entries exist.
@@ -19,6 +22,7 @@ HIDDEN_LEGACY_IDS = {
     "Tosai (1 piece)",
     "Teh Tarik (1 glass)",
 }
+HIDDEN_LEGACY_IDS.update(key for record in _SG_DATA["records"] for key in record.get("replaces", []))
 
 
 def reference_database():
@@ -43,6 +47,17 @@ def make_food_entry(database, food_id, meal, quantity):
         entry[target_key] = None if value is None else value * quantity
     reference = REFERENCE_RECORDS.get(food_id)
     if reference:
+        if reference.get("source_id") == "hpb_sgfoodid":
+            entry["Source"] = {
+                "status": "published_nutrition_reference", "title": SG_SOURCE["title"],
+                "url": reference["source_url"], "food_code": reference["food_code"],
+                "region": "Singapore", "data_year": reference["data_year"],
+                "method": reference["method"], "original_name": reference["original_name"],
+                "weight_g_per_serving": reference["weight_g"],
+                "edible_portion_percent": reference["edible_portion_percent"],
+                "per_100g": deepcopy(reference["per_100g"]),
+            }
+            return entry
         entry["Source"] = {
             "status": "published_energy_reference", "title": SOURCE["title"],
             "url": SOURCE["url"], "pdf_page": reference["pdf_page"],

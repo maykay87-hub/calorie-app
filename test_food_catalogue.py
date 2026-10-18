@@ -44,10 +44,10 @@ class FoodCatalogueTests(unittest.TestCase):
         self.assertIn("Nasi Lemak Basic (1 plate, 230 g; KKM reference)", filter_foods(self.database, RECENT_FOODS, "nasi lemak", recent=[]))
 
     def test_local_names_aliases_and_spacing(self):
-        self.assertIn("Chicken Rice Roasted (1 plate, 325 g; KKM reference)", filter_foods(self.database, query="nasi ayam"))
-        self.assertIn("Chicken Rice Roasted (1 plate, 325 g; KKM reference)", filter_foods(self.database, query="鸡饭"))
+        self.assertIn("Chicken Rice Roasted (1 plate, 363 g; HPB SG reference)", filter_foods(self.database, query="nasi ayam"))
+        self.assertIn("Chicken Rice Roasted (1 plate, 363 g; HPB SG reference)", filter_foods(self.database, query="鸡饭"))
         self.assertIn("Nasi Lemak Basic (1 plate, 230 g; KKM reference)", filter_foods(self.database, query=" NASI   LEMAK "))
-        self.assertIn("Char Kuey Teow (1 plate)", filter_foods(self.database, query="char kway teow"))
+        self.assertIn("Char Kway Teow (1 plate, 480 g; HPB SG reference)", filter_foods(self.database, query="char kway teow"))
 
     def test_recent_is_unique_bounded_and_excludes_unknown_foods(self):
         original = ["Egg (1 whole)", "Rice (1/2 cup)"]
@@ -61,7 +61,7 @@ class FoodCatalogueTests(unittest.TestCase):
 
     def test_phone_search_accepts_reordered_words_and_missing_spaces(self):
         nasi = "Nasi Lemak Basic (1 plate, 230 g; KKM reference)"
-        dry = "Wantan Mee Dry (1 plate, 330 g; KKM reference)"
+        dry = "Wantan Mee Dry (1 bowl, 388 g; HPB SG reference)"
         for query in ["nasilemak", "ＮＡＳＩ　ＬＥＭＡＫ", "lemak nasi"]:
             self.assertIn(nasi, filter_foods(self.database, query=query))
         self.assertIn(dry, filter_foods(self.database, query="dry wantan"))

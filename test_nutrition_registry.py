@@ -14,17 +14,18 @@ class ReferenceFoodTests(unittest.TestCase):
         self.database = reference_database()
 
     def test_reference_manifest_has_traceable_portions_and_explicit_missing_macros(self):
-        self.assertEqual(len(REFERENCE_RECORDS), 46)
+        self.assertEqual(len(REFERENCE_RECORDS), 65)
         for key, item in REFERENCE_RECORDS.items():
             with self.subTest(food=key):
                 self.assertGreater(item["weight_g"], 0)
                 self.assertGreater(item["energy_kcal"], 0)
                 self.assertTrue(math.isfinite(item["energy_kcal"]))
-                self.assertTrue(1 <= item["pdf_page"] <= 108)
-                self.assertIn(item["reference_code"], SOURCE["reference_codes"])
+                if item.get("source_id") != "hpb_sgfoodid":
+                    self.assertTrue(1 <= item["pdf_page"] <= 108)
+                    self.assertIn(item["reference_code"], SOURCE["reference_codes"])
                 self.assertTrue(item["original_name"])
                 for nutrient in ["Prot", "Carbs", "Fat"]:
-                    if item.get("macronutrient_source"):
+                    if item.get("macronutrient_source") or item.get("source_id") == "hpb_sgfoodid":
                         self.assertGreaterEqual(self.database[key][nutrient], 0)
                     else:
                         self.assertIsNone(self.database[key][nutrient])
@@ -46,10 +47,29 @@ class ReferenceFoodTests(unittest.TestCase):
         wantan = filter_foods(self.database, query="云吞面")
         pan = filter_foods(self.database, query="板面")
         self.assertEqual(len(wantan), 2)
-        self.assertEqual(len(pan), 2)
-        self.assertEqual(sorted(self.database[key]["Cals"] for key in wantan), [300, 440])
-        self.assertEqual(sorted(self.database[key]["Cals"] for key in pan), [315, 475])
-        self.assertEqual(filter_foods(self.database, query="chilli pan mee"), [])
+        self.assertEqual(len(pan), 3)
+        self.assertEqual(sorted(self.database[key]["Cals"] for key in wantan), [625, 631])
+        self.assertEqual(sorted(self.database[key]["Cals"] for key in pan), [602, 655, 678])
+        self.assertEqual(len(filter_foods(self.database, query="chilli pan mee")), 1)
+
+    def test_sg_complete_meals_keep_nutrients_portion_and_region_together(self):
+        records = [x for x in REFERENCE_RECORDS.values() if x.get("source_id") == "hpb_sgfoodid"]
+        self.assertEqual(len(records), 19)
+        for item in records:
+            with self.subTest(food=item["food_code"]):
+                edible = item["weight_g"] * item["edible_portion_percent"] / 100
+                for raw_key, key in [("energy", "energy_kcal"), ("protein", "protein_g"), ("carbohydrate", "carbs_g"), ("fat", "fat_g")]:
+                    tolerance = .5 * edible / 100 + .5 if raw_key == "energy" else .005 * edible / 100 + .005
+                    self.assertLessEqual(abs(item["per_100g"][raw_key] * edible / 100 - item[key]), tolerance)
+                entry = make_food_entry(self.database, item["id"], "Lunch", .5)
+                self.assertEqual(entry["Protein"], item["protein_g"] / 2)
+                self.assertEqual(entry["Source"]["region"], "Singapore")
+                self.assertEqual(entry["Source"]["food_code"], item["food_code"])
+                self.assertIn("SG参考", food_label(item["id"]))
+                self.assertIn(item["method"], ["Lab Analysis", "Derived"])
+                for previous in item["replaces"]:
+                    self.assertIn(previous, HIDDEN_LEGACY_IDS)
+                    self.assertNotIn(previous, filter_foods(dict(self.database, **{previous: {}})))
 
     def test_half_portion_scales_energy_and_preserves_unknown_macros_and_source(self):
         key = "Wantan Mee Dry (1 plate, 330 g; KKM reference)"
