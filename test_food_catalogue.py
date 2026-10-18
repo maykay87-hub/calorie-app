@@ -29,10 +29,19 @@ class FoodCatalogueTests(unittest.TestCase):
         self.assertIn("Rice (1/2 cup)", filter_foods(self.database, query=" RICE "))
         self.assertEqual(filter_foods(self.database, query="not-a-food"), [])
 
-    def test_category_and_search_are_applied_together(self):
+    def test_typed_food_search_works_across_any_browse_category(self):
         fruit = next(category for category in CATEGORIES if "Fruit" in category)
         self.assertIn("Apple (1 small)", filter_foods(self.database, fruit))
-        self.assertEqual(filter_foods(self.database, fruit, "Rice"), [])
+        self.assertIn("Rice (1/2 cup)", filter_foods(self.database, fruit, "Rice"))
+        grains = CATEGORIES[0]
+        self.assertIn("Nasi Lemak (Standard Hawker)", filter_foods(self.database, grains, "Nasi lemak"))
+        self.assertIn("Nasi Lemak (Standard Hawker)", filter_foods(self.database, RECENT_FOODS, "nasi lemak", recent=[]))
+
+    def test_local_names_aliases_and_spacing(self):
+        self.assertIn("Chicken Rice (Roasted - 1 plate)", filter_foods(self.database, query="nasi ayam"))
+        self.assertIn("Chicken Rice (Roasted - 1 plate)", filter_foods(self.database, query="鸡饭"))
+        self.assertIn("Nasi Lemak (Standard Hawker)", filter_foods(self.database, query=" NASI   LEMAK "))
+        self.assertIn("Char Kuey Teow (1 plate)", filter_foods(self.database, query="char kway teow"))
 
     def test_recent_is_unique_bounded_and_excludes_unknown_foods(self):
         original = ["Egg (1 whole)", "Rice (1/2 cup)"]

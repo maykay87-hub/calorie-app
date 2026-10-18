@@ -478,14 +478,23 @@ if st.button("保存当天记录 · Save", type="primary", use_container_width=T
 tab1, tab2, tab3 = st.tabs(["饮食 Food", "运动 Exercise", "历史 History"])
 
 with tab1:
-    category = st.selectbox(
-        "食物分类 · Category", [ALL_FOODS, RECENT_FOODS] + CATEGORIES, key="food_category"
+    query = st.text_input(
+        "吃了什么？ · Search food", placeholder="直接输入：nasi lemak、鸡饭、炒面",
+        key="food_search",
     )
-    query = st.text_input("搜索食物 · Search", placeholder="例如：饭、鸡肉、rice", key="food_search")
+    with st.expander("分类与最近使用（可选） · Browse"):
+        category = st.selectbox(
+            "浏览范围 · Browse", [ALL_FOODS, RECENT_FOODS] + CATEGORIES,
+            key="food_browse_category",
+        )
+    if query.strip():
+        st.caption("正在搜索全部食物 · Searching all foods")
+    elif category != ALL_FOODS:
+        st.caption(f"当前浏览 · Browsing: {category}")
     choices = filter_foods(
         food_database, category, query, st.session_state.get("recent_food_names", [])
     )
-    if category == RECENT_FOODS:
+    if category == RECENT_FOODS and not query.strip():
         st.caption("本次登入选择或载入过的食物，最多8项。 Up to 8 foods used or loaded during this sign-in.")
     add_meal = False
     if choices:
@@ -501,10 +510,10 @@ with tab1:
             qty = st.selectbox("份数 · Servings", [0.5, 1.0, 1.5, 2.0, 2.5, 3.0], index=1)
             st.caption("1份 = 食物名称标示的份量。 One serving follows the portion in the food name.")
             add_meal = st.form_submit_button("添加饮食 · Add meal", type="primary", use_container_width=True)
-    elif category == RECENT_FOODS and not st.session_state.get("recent_food_names"):
+    elif category == RECENT_FOODS and not query.strip() and not st.session_state.get("recent_food_names"):
         st.info("还没有最近使用的食物，请先选其他分类添加。 No recent foods yet; choose another category to start.")
     else:
-        st.info("没有符合的食物。请清除搜索文字或改选「全部食物」。 No matches; clear the search or select All foods.")
+        st.info("食物库暂时没有符合的餐食，可换中文、英文或马来文名称再找。 No matching food yet; try another name.")
         
     if add_meal:
         st.session_state["recent_food_names"] = remember_food(

@@ -84,14 +84,34 @@ def remember_food(recent, food_id, limit=8):
     return ([food_id] + [item for item in recent if item != food_id])[:limit]
 
 
+SEARCH_ALIASES = {
+    "Nasi Lemak (Standard Hawker)": "nasi lemak 椰浆饭 椰漿飯",
+    "Chicken Rice (Roasted - 1 plate)": "nasi ayam chicken rice 鸡饭 雞飯 烧鸡饭 燒雞飯",
+    "Mee Goreng / Fried Mee (1 plate)": "mee goreng mi goreng fried noodles 炒面 炒麵",
+    "Noodle Soup / Mee Soup (1 bowl)": "mee sup mi sup noodle soup 汤面 湯麵",
+    "Curry Mee (1 bowl)": "mee kari mi kari curry noodles 咖喱面 咖哩麵",
+    "Char Kuey Teow (1 plate)": "char kuey teow char kway teow 炒粿条 炒粿條",
+    "Roti Canai (1 piece + dhal)": "roti canai roti prata 印度煎饼 印度煎餅",
+    "Tosai (1 piece)": "tosai thosai dosa dosai",
+    "Teh Tarik (1 glass)": "teh tarik 拉茶",
+}
+
+
+def _search_text(value):
+    return " ".join(value.casefold().split())
+
+
 def filter_foods(database, category=ALL_FOODS, query="", recent=()):
-    if category == RECENT_FOODS:
-        candidates = list(dict.fromkeys(item for item in recent if item in database))
-    elif category == ALL_FOODS:
-        candidates = list(database)
-    else:
-        candidates = [key for key in database if FOOD_META.get(key, ("", ""))[1] == category]
-    query = query.strip().casefold()
+    query = _search_text(query)
+    # A typed food name always searches the entire database. Categories only
+    # narrow browsing when the search box is empty.
     if query:
-        candidates = [key for key in candidates if query in food_label(key).casefold()]
-    return candidates
+        return [
+            key for key in database
+            if query in _search_text(food_label(key) + " " + SEARCH_ALIASES.get(key, ""))
+        ]
+    if category == RECENT_FOODS:
+        return list(dict.fromkeys(item for item in recent if item in database))
+    if category == ALL_FOODS:
+        return list(database)
+    return [key for key in database if FOOD_META.get(key, ("", ""))[1] == category]
