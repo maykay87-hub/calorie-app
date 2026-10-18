@@ -236,7 +236,7 @@ class AppFlowTests(unittest.TestCase):
     def test_whole_meal_protein_reference_survives_half_serving_save_and_reload(self):
         self.at.text_input(key='food_search').set_value('dry wantan').run()
         self.assertIn('HPB SG reference', self.at.selectbox(key='selected_food_id').value)
-        next(x for x in self.at.selectbox if x.label == '份数 · Servings').set_value(.5)
+        self.number('份数 · Servings').set_value(.5)
         self.button('添加饮食').click().run()
         self.assertFalse(self.at.exception)
         entry = self.at.session_state['food_log'][0]
@@ -345,3 +345,20 @@ class AppFlowTests(unittest.TestCase):
         self.assertEqual(self.at.session_state['food_log'][0]['Calories'], 72)
         self.assertEqual(self.at.session_state['exercise_log'], [])
         self.assertFalse(self.at.button(key='save_bottom_exercise').disabled)
+
+    def test_quarter_serving_and_short_exercise_save_restore(self):
+        self.at.text_input(key='food_search').set_value('dry wantan').run()
+        self.number('份数 · Servings').set_value(.25)
+        self.button('添加饮食').click().run()
+        food = self.at.session_state['food_log'][0].copy()
+        self.assertEqual(food['Qty'], .25)
+        self.assertAlmostEqual(food['Calories'], 156.25)
+        self.assertAlmostEqual(food['Protein'], 8.43)
+        self.number('时长（分钟）').set_value(10)
+        self.button('添加运动').click().run()
+        exercise = self.at.session_state['exercise_log'][0].copy()
+        self.assertEqual(exercise['Duration'], 10)
+        self.at.button(key='save_bottom_exercise').click().run()
+        restored = self.new_app()
+        self.assertEqual(restored.session_state['food_log'][0], food)
+        self.assertEqual(restored.session_state['exercise_log'][0], exercise)

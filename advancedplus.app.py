@@ -673,8 +673,8 @@ with tab1:
                     min_value=0.1, value=float(label_source["label_amount"]), step=1.0,
                     key=f"personal_search_amount_{template_key(personal_food)}")
             else:
-                qty = st.selectbox("份数 · Servings", [0.5, 1.0, 1.5, 2.0, 2.5, 3.0], index=1)
-                st.caption("1份 = 上方标示份量；吃半份请选择0.5。 One serving follows the portion above.")
+                qty = st.number_input("份数 · Servings", min_value=0.01, value=1.0, step=0.25, format="%.2f")
+                st.caption("1份 = 上方标示份量；半份填0.5，四分之一份填0.25。可直接输入。 One serving follows the portion above; enter the amount eaten.")
             add_meal = st.form_submit_button("添加饮食 · Add meal", type="primary", use_container_width=True)
     elif category == RECENT_FOODS and not query.strip() and not st.session_state.get("recent_food_names"):
         st.info("还没有最近使用的食物，请先选其他分类添加。 No recent foods yet; choose another category to start.")
@@ -789,7 +789,7 @@ with tab1:
 with tab2:
     with st.form("add_exercise_form", clear_on_submit=False):
         ex_name = st.selectbox("运动类型 · Activity", list(exercise_database.keys()))
-        ex_minutes = st.selectbox("时长（分钟） · Duration", [15, 30, 45, 60, 75, 90], index=1)
+        ex_minutes = st.number_input("时长（分钟） · Duration", min_value=1, value=30, step=5)
         add_activity = st.form_submit_button("添加运动 · Add activity", type="primary", use_container_width=True)
 
     if add_activity:
