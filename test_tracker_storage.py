@@ -1,6 +1,6 @@
 import copy
 import unittest
-from tracker_storage import HEADERS, load_day, save_day
+from tracker_storage import HEADERS, load_day, save_day, SaveConflictError, day_snapshot
 
 FOOD = {"Meal": "Breakfast", "Food": "Rice", "Qty": 1.0,
         "Calories": 75, "Protein": 2, "Carbs": 15, "Fat": 0}
@@ -25,6 +25,46 @@ class Sheet:
 
 
 class StorageTests(unittest.TestCase):
+    def test_stale_page_cannot_overwrite_changed_saved_day(self):
+        sheet = Sheet()
+        baseline = load_day(sheet, 'alice', '2026-10-18')['baseline']
+        save_day(sheet, 'alice', '2026-10-18', [FOOD], [], 75, 'rice', 'None', expected_snapshot=baseline)
+        before = copy.deepcopy(sheet.rows)
+        with self.assertRaises(SaveConflictError):
+            save_day(sheet, 'alice', '2026-10-18', [], [], 0, 'None', 'None', expected_snapshot=baseline)
+        self.assertEqual(sheet.rows, before)
+
+    def test_lost_acknowledgement_retry_with_identical_content_is_idempotent(self):
+        sheet = Sheet()
+        save_day(sheet, 'alice', '2026-10-18', [FOOD], [], 75, 'rice', 'None', expected_snapshot=None)
+        self.assertEqual(save_day(sheet, 'alice', '2026-10-18', [FOOD], [], 75.0, 'rice', 'None', expected_snapshot=None), 'unchanged')
+        self.assertEqual(len(sheet.rows), 2)
+
+    def test_loaded_baseline_survives_numeric_sheet_rendering_and_other_account_updates(self):
+        sheet = Sheet()
+        save_day(sheet, 'alice', '2026-10-18', [FOOD], [], 75, 'rice', 'None')
+        baseline = load_day(sheet, 'alice', '2026-10-18')['baseline']
+        sheet.rows[1][3] = '75.0'
+        save_day(sheet, 'bob', '2026-10-18', [], [], 0, 'None', 'None')
+        save_day(sheet, 'alice', '2026-10-18', [FOOD, FOOD], [], 150, 'rice twice', 'None', expected_snapshot=baseline)
+        self.assertEqual(len(load_day(sheet, 'alice', '2026-10-18')['food_log']), 2)
+
+    def test_baseline_ignores_floating_point_rendering_noise(self):
+        sheet = Sheet()
+        save_day(sheet, 'alice', '2026-10-18', [FOOD], [], 75.00000000000001, 'rice', 'None')
+        baseline = load_day(sheet, 'alice', '2026-10-18')['baseline']
+        sheet.rows[1][3] = '75'
+        save_day(sheet, 'alice', '2026-10-18', [FOOD, FOOD], [], 150, 'rice twice', 'None', expected_snapshot=baseline)
+        self.assertEqual(len(load_day(sheet, 'alice', '2026-10-18')['food_log']), 2)
+
+    def test_stale_legacy_replacement_is_also_blocked(self):
+        sheet = Sheet([HEADERS, ['2026-10-18', 'old', 'None', '75', 'alice']])
+        baseline = load_day(sheet, 'alice', '2026-10-18')['baseline']
+        sheet.rows[1][1] = 'changed elsewhere'
+        with self.assertRaises(SaveConflictError):
+            save_day(sheet, 'alice', '2026-10-18', [FOOD], [], 75, 'rice', 'None', replace_legacy=True, expected_snapshot=baseline)
+        self.assertEqual(sheet.rows[1][1], 'changed elsewhere')
+
     def test_invalid_entry_metadata_and_zero_amounts_are_rejected_before_write(self):
         for change in [{"Food": []}, {"Meal": ""}, {"Qty": 0}]:
             sheet = Sheet()

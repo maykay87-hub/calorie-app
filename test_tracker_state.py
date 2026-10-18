@@ -1,8 +1,34 @@
 import unittest
-from tracker_state import logout, select_draft, daily_signature
+from tracker_state import logout, select_draft, daily_signature, change_entries, undo_entries
 
 
 class DraftIsolationTests(unittest.TestCase):
+    def test_delete_clear_and_edit_can_be_undone_without_losing_list_alias(self):
+        state = {}
+        draft = select_draft(state, 'student', '2026-10-18')
+        change_entries(draft, 'food', [{'Food': 'Rice', 'Source': {'status': 'original'}}])
+        alias = state['food_log']
+        change_entries(draft, 'food', [])
+        self.assertTrue(undo_entries(draft, 'food'))
+        self.assertIs(state['food_log'], alias)
+        self.assertEqual(state['food_log'][0]['Food'], 'Rice')
+        change_entries(draft, 'food', [{'Food': 'Bread'}])
+        undo_entries(draft, 'food')
+        self.assertEqual(state['food_log'][0]['Source']['status'], 'original')
+
+    def test_undo_is_bounded_and_separate_by_day_account_and_entry_kind(self):
+        state = {}
+        draft = select_draft(state, 'alice', '2026-10-18')
+        for i in range(25):
+            change_entries(draft, 'food', [{'amount': i}])
+        self.assertEqual(len(draft['food_undo']), 20)
+        self.assertFalse(undo_entries(draft, 'exercise'))
+        other = select_draft(state, 'alice', '2026-10-19')
+        self.assertFalse(undo_entries(other, 'food'))
+        other_user = select_draft(state, 'bob', '2026-10-18')
+        self.assertFalse(undo_entries(other_user, 'food'))
+        self.assertEqual(len(draft['food_undo']), 20)
+
     def test_save_status_tracks_edits_deletions_and_unknown_nutrients(self):
         food = [{"Qty": 1, "Protein": None, "Calories": 100}]
         saved = daily_signature(food, [])

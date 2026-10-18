@@ -3,6 +3,7 @@ from datetime import date, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 import importlib.util
+import json
 import unittest
 from unittest.mock import patch
 from test_tracker_storage import Sheet, HEADERS, FOOD
@@ -295,3 +296,52 @@ class AppFlowTests(unittest.TestCase):
         self.assertEqual(entry['Calories'], 93)
         self.assertEqual(entry['Carbs'], 12.1)
         self.assertEqual(entry['Source']['portion_unit'], 'ml')
+
+    def test_clear_saved_food_then_undo_can_restore_and_resave(self):
+        self.add_package()
+        self.at.button(key='save_bottom_food').click().run()
+        self.button('清空当天饮食').click().run()
+        self.assertFalse(self.at.exception)
+        self.assertEqual(self.at.session_state['food_log'], [])
+        self.assertFalse(self.button('撤销上一笔 · Undo').disabled)
+        self.at.button(key='save_bottom_food').click().run()
+        self.button('撤销上一笔 · Undo').click().run()
+        self.assertFalse(self.at.exception)
+        self.assertEqual(self.at.session_state['food_log'][0]['Calories'], 72)
+        self.assertTrue(any('Unsaved changes' in x.value for x in self.at.warning))
+        self.at.button(key='save_bottom_food').click().run()
+        restored = self.new_app()
+        self.assertEqual(restored.session_state['food_log'][0]['Calories'], 72)
+
+    def test_clear_exercise_keeps_undo_available_when_list_is_empty(self):
+        self.button('添加运动').click().run()
+        before = self.at.session_state['exercise_log'][0].copy()
+        self.button('清空当天运动').click().run()
+        self.assertEqual(self.at.session_state['exercise_log'], [])
+        self.button('撤销上一笔运动').click().run()
+        self.assertFalse(self.at.exception)
+        self.assertEqual(self.at.session_state['exercise_log'], [before])
+
+    def test_second_page_conflict_preserves_local_draft_until_confirmed_reload(self):
+        first = self.at
+        second = self.new_app()
+        self.at = first
+        self.add_package()
+        self.at.button(key='save_bottom_food').click().run()
+        self.at = second
+        self.button('添加运动').click().run()
+        local_exercise = self.at.session_state['exercise_log'][0].copy()
+        self.at.button(key='save_bottom_exercise').click().run()
+        self.assertFalse(self.at.exception)
+        self.assertTrue(any('changed elsewhere' in x.value for x in self.at.error))
+        self.assertEqual(self.at.session_state['exercise_log'], [local_exercise])
+        self.assertTrue(self.at.button(key='save_bottom_exercise').disabled)
+        self.assertTrue(self.button('载入云端最新版').disabled)
+        self.assertEqual(json.loads(self.sheet.rows[1][5])[0]['Calories'], 72)
+        day = self.at.date_input(key='entry_date').value
+        self.at.checkbox(key=f'reload_conflict_{day}').check().run()
+        self.button('载入云端最新版').click().run()
+        self.assertFalse(self.at.exception)
+        self.assertEqual(self.at.session_state['food_log'][0]['Calories'], 72)
+        self.assertEqual(self.at.session_state['exercise_log'], [])
+        self.assertFalse(self.at.button(key='save_bottom_exercise').disabled)

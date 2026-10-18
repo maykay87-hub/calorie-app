@@ -1,4 +1,5 @@
 """Session-only drafts, separated by signed-in account and entry date."""
+from copy import deepcopy
 
 
 def select_draft(state, username, entry_date):
@@ -20,3 +21,26 @@ def daily_signature(foods, exercises):
     """Compare full saved snapshots, including unknown nutrients and sources."""
     import json
     return json.dumps([foods, exercises], sort_keys=True, ensure_ascii=False, allow_nan=False)
+
+
+def change_entries(draft, kind, entries):
+    if kind not in {"food", "exercise"}:
+        raise ValueError("Unknown entry kind.")
+    current = draft[kind + "_log"]
+    if current == entries:
+        return False
+    history = draft.setdefault(kind + "_undo", [])
+    history.append(deepcopy(current))
+    del history[:-20]
+    current[:] = deepcopy(entries)
+    return True
+
+
+def undo_entries(draft, kind):
+    if kind not in {"food", "exercise"}:
+        raise ValueError("Unknown entry kind.")
+    history = draft.get(kind + "_undo", [])
+    if not history:
+        return False
+    draft[kind + "_log"][:] = history.pop()
+    return True

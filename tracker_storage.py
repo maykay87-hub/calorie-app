@@ -4,6 +4,40 @@ import math
 
 HEADERS = ["Date", "Food_Log", "Exercise_Log", "Net_Calories", "username"]
 DETAIL_HEADERS = ["Food_JSON", "Exercise_JSON"]
+_UNSET = object()
+
+
+class SaveConflictError(ValueError):
+    """The user's row changed since this page loaded it."""
+    def __init__(self, current):
+        super().__init__("Saved records changed elsewhere; the current draft was not written.")
+        self.current = current
+
+
+def _snapshot(values):
+    if values is None:
+        return None
+    result = {key: values.get(key, "") for key in HEADERS + DETAIL_HEADERS}
+    try:
+        energy = float(result["Net_Calories"])
+        if math.isfinite(energy):
+            result["Net_Calories"] = round(energy, 6)
+    except (ValueError, TypeError):
+        pass
+    for key in DETAIL_HEADERS:
+        try:
+            result[key] = json.loads(result[key])
+        except (ValueError, TypeError):
+            pass
+    return result
+
+
+def day_snapshot(username, day, foods, exercises, net_calories, food_summary, exercise_summary):
+    return _snapshot({"Date": str(day), "username": username,
+                      "Food_Log": food_summary, "Exercise_Log": exercise_summary,
+                      "Net_Calories": net_calories,
+                      "Food_JSON": json.dumps(foods, ensure_ascii=False, allow_nan=False),
+                      "Exercise_JSON": json.dumps(exercises, ensure_ascii=False, allow_nan=False)})
 
 
 def _read(sheet):
@@ -49,19 +83,20 @@ def load_day(sheet, username, day):
     headers, rows = _read(sheet)
     matches = _matches(rows, username, day)
     if not matches:
-        return {"food_log": [], "exercise_log": [], "legacy": False}
+        return {"food_log": [], "exercise_log": [], "legacy": False, "baseline": None}
     _, row = matches[-1]
     details = dict(zip(headers, row))
     if not all(details.get(key) for key in DETAIL_HEADERS):
         return {"food_log": [], "exercise_log": [], "legacy": True,
+                "baseline": _snapshot(details),
                 "summary": {key: details.get(key, "") for key in HEADERS[:4]}}
     return {"food_log": _decode(details["Food_JSON"], "food"),
             "exercise_log": _decode(details["Exercise_JSON"], "exercise"),
-            "legacy": False}
+            "legacy": False, "baseline": _snapshot(details)}
 
 
 def save_day(sheet, username, day, foods, exercises, net_calories,
-             food_summary, exercise_summary, replace_legacy=False):
+             food_summary, exercise_summary, replace_legacy=False, expected_snapshot=_UNSET):
     # Serialize and validate before any write.
     if not isinstance(username, str) or not username.strip():
         raise ValueError("A signed-in account is required.")
@@ -74,8 +109,15 @@ def save_day(sheet, username, day, foods, exercises, net_calories,
     _decode(exercise_json, "exercise")
     headers, rows = _read(sheet)
     matches = _matches(rows, username, day)
+    previous = dict(zip(headers, matches[-1][1])) if matches else None
+    proposed = day_snapshot(username, day, foods, exercises, net_calories, food_summary, exercise_summary)
+    if expected_snapshot is not _UNSET and _snapshot(previous) != expected_snapshot:
+        # A write may have succeeded while its acknowledgement was lost. The
+        # same content is an idempotent retry, not a conflicting overwrite.
+        if _snapshot(previous) == proposed:
+            return "unchanged"
+        raise SaveConflictError(_snapshot(previous))
     if matches:
-        previous = dict(zip(headers, matches[-1][1]))
         if not all(previous.get(key) for key in DETAIL_HEADERS) and not replace_legacy:
             raise ValueError("This date has an older summary. Confirm replacement first.")
     new_headers = headers + [key for key in DETAIL_HEADERS if key not in headers]

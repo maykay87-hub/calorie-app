@@ -6,12 +6,13 @@ from oauth2client.service_account import ServiceAccountCredentials
 from datetime import date, datetime
 from zoneinfo import ZoneInfo
 from time import monotonic
-from tracker_state import logout, select_draft, daily_signature
+from tracker_state import logout, select_draft, daily_signature, change_entries, undo_entries
 from entry_editor import rescale_food, rescale_exercise, nutrient_coverage
 from label_entry import make_label_entry, entry_amount_label
 from label_library import load_personal_labels, remember_label, template_key, reuse_label
-from tracker_storage import load_day, save_day
+from tracker_storage import load_day, save_day, day_snapshot, SaveConflictError
 from tracker_history import load_history
+from tracker_export import export_history_csv, export_draft
 from profile_storage import ACTIVITIES, load_profile, save_profile
 from nutrition_registry import SOURCE, SG_SOURCE, REFERENCE_RECORDS, reference_database, reference_portion, make_food_entry, format_energy
 from food_catalogue import ALL_FOODS, RECENT_FOODS, CATEGORIES, MEAL_LABELS, food_label, filter_foods, remember_food
@@ -73,21 +74,29 @@ def format_log_to_string(log_list, type="food"):
     return ", ".join(text_summary)
 
 def save_daily_summary(selected_date, food_log, exercise_log, net_calories):
+    draft_saved = st.session_state["daily_drafts"][(st.session_state["username"], str(selected_date))]
+    food_summary = format_log_to_string(food_log, type="food")
+    exercise_summary = format_log_to_string(exercise_log, type="exercise")
     try:
         sheet = get_sheet_connection("main")
         save_day(
             sheet, st.session_state["username"], selected_date,
             food_log, exercise_log, net_calories,
-            format_log_to_string(food_log, type="food"),
-            format_log_to_string(exercise_log, type="exercise"),
+            food_summary, exercise_summary,
             replace_legacy=st.session_state.get("replace_legacy", False),
+            expected_snapshot=draft_saved.get("baseline"),
         )
         st.session_state["daily_drafts"][(st.session_state["username"], str(selected_date))]["legacy"] = False
-        draft_saved = st.session_state["daily_drafts"][(st.session_state["username"], str(selected_date))]
+        draft_saved["baseline"] = day_snapshot(st.session_state["username"], selected_date,
+            food_log, exercise_log, net_calories, food_summary, exercise_summary)
+        draft_saved.pop("conflict", None)
         draft_saved["saved_signature"] = daily_signature(food_log, exercise_log)
         st.session_state["daily_save_notice"] = str(selected_date)
         st.session_state.pop("history_cache", None)
         return True
+    except SaveConflictError as exc:
+        draft_saved["conflict"] = {"current": exc.current}
+        st.rerun()
     except Exception:
         logging.getLogger(__name__).exception("Daily save failed")
         st.error("保存未确认，输入仍留在本次会话。请重试保存，暂时不要关闭或刷新页面。 Save was not confirmed. Your draft remains here; retry before closing or refreshing.")
@@ -304,6 +313,7 @@ if not draft.get("loaded"):
             )
         draft["legacy"] = saved["legacy"]
         draft["summary"] = saved.get("summary")
+        draft["baseline"] = saved.get("baseline")
         draft["saved_signature"] = daily_signature(draft["food_log"], draft["exercise_log"])
         draft["loaded"] = True
     except Exception:
@@ -313,6 +323,7 @@ if not draft.get("loaded"):
         st.stop()
 with st.expander("使用提示 · How to use"):
     st.write("已保存的记录会在登入后载入。修改后请保存；未保存的修改可能在离开后丢失。 Saved records load after sign-in. Save after editing; unsaved changes may be lost when you leave.")
+    st.caption("本次会话可分别撤销最近20次饮食和运动修改，包括删除和清空。 Undo supports the last 20 food and exercise changes in this session.")
 if draft.get("legacy"):
     st.caption("此日期是旧版摘要。可查看原记录；如需重新填写，请先添加完整记录再确认替换。 Older summary: view below, or enter a complete replacement.")
     with st.expander("查看旧记录 · Previous summary"):
@@ -512,6 +523,25 @@ elif st.session_state.pop("daily_save_notice", None) == str(entry_date):
     st.success(f"已保存 Saved · {entry_date}")
 
 # --- SAVE TO CLOUD BUTTON ---
+if draft.get("conflict"):
+    st.error("此日记录已在另一处更新，本次输入未写入。请先备份当前输入，再载入云端最新版。 This day changed elsewhere. Your draft was not written; back it up before loading the latest saved version.")
+    st.download_button("备份当前输入 · Back up current entries",
+        data=export_draft(st.session_state["username"], entry_date, st.session_state.food_log, st.session_state.exercise_log),
+        file_name=f"may-bloom-draft-{entry_date}.json", mime="application/json", on_click="ignore")
+    with st.expander("云端当前摘要 · Current saved summary"):
+        current = draft["conflict"]["current"]
+        if current is None:
+            st.write("云端目前没有此日记录 · No saved record for this day")
+        else:
+            st.write("Food: " + str(current["Food_Log"]))
+            st.write("Exercise: " + str(current["Exercise_Log"]))
+            st.write(f"Net: {current['Net_Calories']} kcal")
+    discard_local = st.checkbox("确认放弃此页未保存修改，载入云端记录 · Discard this draft and load saved entries", key=f"reload_conflict_{entry_date}")
+    if st.button("载入云端最新版 · Load latest saved entries", disabled=not discard_local):
+        del st.session_state["daily_drafts"][(st.session_state["username"], str(entry_date))]
+        st.session_state.pop("history_cache", None)
+        st.session_state.pop("daily_save_notice", None)
+        st.rerun()
 replace_legacy = False
 if draft.get("legacy"):
     replace_legacy = st.checkbox(
@@ -520,7 +550,7 @@ if draft.get("legacy"):
     )
 st.session_state["replace_legacy"] = replace_legacy
 if st.button("保存当天记录 · Save", type="primary", use_container_width=True,
-             disabled=bool(draft.get("legacy")) and not replace_legacy):
+             disabled=(bool(draft.get("legacy")) and not replace_legacy) or bool(draft.get("conflict"))):
     if save_daily_summary(entry_date, st.session_state.food_log, st.session_state.exercise_log, net_calories):
         st.rerun()
 
@@ -561,7 +591,7 @@ with tab1:
                     value=float(label_source["label_amount"]), step=1.0)
                 reuse_add = st.form_submit_button("添加我的食品 · Add my food", use_container_width=True)
             if reuse_add:
-                st.session_state.food_log.append(reuse_label(template, reuse_meal, reuse_amount))
+                change_entries(draft, "food", st.session_state.food_log + [reuse_label(template, reuse_meal, reuse_amount)])
                 st.rerun()
     query = st.text_input(
         "吃了什么？ · Search food", placeholder="直接输入：nasi lemak、鸡饭、炒面",
@@ -659,7 +689,7 @@ with tab1:
             added_food = reuse_label(personal_by_food[food], meal, personal_amount)
         else:
             added_food = make_food_entry(food_database, food, meal, qty)
-        st.session_state.food_log.append(added_food)
+        change_entries(draft, "food", st.session_state.food_log + [added_food])
         st.rerun()
 
     with st.expander("找不到包装食品？按标签添加 · Add from package label"):
@@ -686,7 +716,7 @@ with tab1:
             except ValueError as exc:
                 st.error(str(exc))
             else:
-                st.session_state.food_log.append(label_entry)
+                change_entries(draft, "food", st.session_state.food_log + [label_entry])
                 st.session_state["personal_labels"] = remember_label(st.session_state.get("personal_labels", []), label_entry)
                 st.rerun()
 
@@ -726,29 +756,33 @@ with tab1:
                 delete_food = st.form_submit_button("删除这一笔 · Delete entry", use_container_width=True)
             if update_food:
                 try:
-                    food_rows[edit_index] = rescale_food(selected, new_amount / label_basis)
-                    food_rows[edit_index]["Meal"] = updated_meal
+                    updated = rescale_food(selected, new_amount / label_basis)
+                    updated["Meal"] = updated_meal
+                    changed = food_rows.copy()
+                    changed[edit_index] = updated
+                    change_entries(draft, "food", changed)
                 except ValueError:
                     st.error("食用量必须大于零 · Enter an amount greater than zero.")
                 else:
                     st.rerun()
             if delete_food:
-                food_rows.pop(edit_index)
+                change_entries(draft, "food", food_rows[:edit_index] + food_rows[edit_index + 1:])
                 st.session_state.pop(f"food_edit_index_{entry_date}", None)
                 st.rerun()
 
+    if st.session_state.food_log or draft.get("food_undo"):
         col_undo, col_clear = st.columns(2)
         with col_undo:
-            if st.button("撤销上一笔 · Undo", use_container_width=True):
-                st.session_state.food_log.pop()
+            if st.button("撤销上一笔 · Undo", use_container_width=True, disabled=not draft.get("food_undo")):
+                undo_entries(draft, "food")
                 st.rerun()
         with col_clear:
-            if st.button("清空当天饮食 · Clear food", use_container_width=True):
-                st.session_state.food_log.clear()
+            if st.button("清空当天饮食 · Clear food", use_container_width=True, disabled=not st.session_state.food_log):
+                change_entries(draft, "food", [])
                 st.rerun()
 
     if st.button("保存当天记录 · Save day", key="save_bottom_food", type="primary", use_container_width=True,
-                 disabled=bool(draft.get("legacy")) and not replace_legacy):
+                 disabled=(bool(draft.get("legacy")) and not replace_legacy) or bool(draft.get("conflict"))):
         if save_daily_summary(entry_date, st.session_state.food_log, st.session_state.exercise_log, net_calories):
             st.rerun()
 
@@ -759,11 +793,11 @@ with tab2:
         add_activity = st.form_submit_button("添加运动 · Add activity", type="primary", use_container_width=True)
 
     if add_activity:
-        st.session_state.exercise_log.append({
+        change_entries(draft, "exercise", st.session_state.exercise_log + [{
             "Activity": ex_name, 
             "Duration": ex_minutes,
             "Calories Burned": exercise_database[ex_name] * ex_minutes / 30
-        })
+        }])
         st.rerun()
         
     if st.session_state.exercise_log:
@@ -781,25 +815,28 @@ with tab2:
                 update_activity = st.form_submit_button("更新时长 · Update duration", use_container_width=True)
                 delete_activity = st.form_submit_button("删除这一笔运动 · Delete activity", use_container_width=True)
             if update_activity:
-                exercise_rows[edit_index] = rescale_exercise(selected, new_minutes)
+                changed = exercise_rows.copy()
+                changed[edit_index] = rescale_exercise(selected, new_minutes)
+                change_entries(draft, "exercise", changed)
                 st.rerun()
             if delete_activity:
-                exercise_rows.pop(edit_index)
+                change_entries(draft, "exercise", exercise_rows[:edit_index] + exercise_rows[edit_index + 1:])
                 st.session_state.pop(f"exercise_edit_index_{entry_date}", None)
                 st.rerun()
 
+    if st.session_state.exercise_log or draft.get("exercise_undo"):
         col_undo, col_clear = st.columns(2)
         with col_undo:
-            if st.button("撤销上一笔运动 · Undo activity", use_container_width=True):
-                st.session_state.exercise_log.pop()
+            if st.button("撤销上一笔运动 · Undo activity", use_container_width=True, disabled=not draft.get("exercise_undo")):
+                undo_entries(draft, "exercise")
                 st.rerun()
         with col_clear:
-            if st.button("清空当天运动 · Clear exercise", use_container_width=True):
-                st.session_state.exercise_log.clear()
+            if st.button("清空当天运动 · Clear exercise", use_container_width=True, disabled=not st.session_state.exercise_log):
+                change_entries(draft, "exercise", [])
                 st.rerun()
 
     if st.button("保存当天记录 · Save day", key="save_bottom_exercise", type="primary", use_container_width=True,
-                 disabled=bool(draft.get("legacy")) and not replace_legacy):
+                 disabled=(bool(draft.get("legacy")) and not replace_legacy) or bool(draft.get("conflict"))):
         if save_daily_summary(entry_date, st.session_state.food_log, st.session_state.exercise_log, net_calories):
             st.rerun()
 
@@ -817,6 +854,8 @@ with tab3:
         if not records:
             st.info("还没有已保存记录。添加饮食或运动后请保存。 No saved history yet.")
         else:
+            st.download_button("导出已保存历史 · Export history (CSV)",
+                data=export_history_csv(records), file_name="may-bloom-history.csv", mime="text/csv", on_click="ignore")
             history = pd.DataFrame(records)
             display = history[["Date", "Net_Calories"]].copy()
             protein_labels = []
