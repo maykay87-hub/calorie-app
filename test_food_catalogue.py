@@ -2,6 +2,7 @@ import ast
 import copy
 from pathlib import Path
 import unittest
+from nutrition_registry import REFERENCE_RECORDS, reference_database
 from food_catalogue import (ALL_FOODS, RECENT_FOODS, CATEGORIES, FOOD_META,
                             food_label, filter_foods, remember_food)
 
@@ -11,7 +12,9 @@ def existing_database():
     node = next(node for node in tree.body if isinstance(node, ast.Assign)
                 and any(isinstance(target, ast.Name) and target.id == "food_database"
                         for target in node.targets))
-    return ast.literal_eval(node.value)
+    database = ast.literal_eval(node.value)
+    database.update(reference_database())
+    return database
 
 
 class FoodCatalogueTests(unittest.TestCase):
@@ -21,7 +24,10 @@ class FoodCatalogueTests(unittest.TestCase):
     def test_every_existing_food_has_a_label_and_one_known_category(self):
         self.assertEqual(set(self.database), set(FOOD_META))
         for key in self.database:
-            self.assertIn(key, food_label(key))
+            if key in REFERENCE_RECORDS:
+                self.assertIn(REFERENCE_RECORDS[key]["zh"], food_label(key))
+            else:
+                self.assertIn(key, food_label(key))
             self.assertIn(FOOD_META[key][1], CATEGORIES)
 
     def test_search_supports_chinese_and_case_insensitive_english(self):
@@ -34,13 +40,13 @@ class FoodCatalogueTests(unittest.TestCase):
         self.assertIn("Apple (1 small)", filter_foods(self.database, fruit))
         self.assertIn("Rice (1/2 cup)", filter_foods(self.database, fruit, "Rice"))
         grains = CATEGORIES[0]
-        self.assertIn("Nasi Lemak (Standard Hawker)", filter_foods(self.database, grains, "Nasi lemak"))
-        self.assertIn("Nasi Lemak (Standard Hawker)", filter_foods(self.database, RECENT_FOODS, "nasi lemak", recent=[]))
+        self.assertIn("Nasi Lemak Basic (1 plate, 230 g; KKM reference)", filter_foods(self.database, grains, "Nasi lemak"))
+        self.assertIn("Nasi Lemak Basic (1 plate, 230 g; KKM reference)", filter_foods(self.database, RECENT_FOODS, "nasi lemak", recent=[]))
 
     def test_local_names_aliases_and_spacing(self):
-        self.assertIn("Chicken Rice (Roasted - 1 plate)", filter_foods(self.database, query="nasi ayam"))
-        self.assertIn("Chicken Rice (Roasted - 1 plate)", filter_foods(self.database, query="鸡饭"))
-        self.assertIn("Nasi Lemak (Standard Hawker)", filter_foods(self.database, query=" NASI   LEMAK "))
+        self.assertIn("Chicken Rice Roasted (1 plate, 325 g; KKM reference)", filter_foods(self.database, query="nasi ayam"))
+        self.assertIn("Chicken Rice Roasted (1 plate, 325 g; KKM reference)", filter_foods(self.database, query="鸡饭"))
+        self.assertIn("Nasi Lemak Basic (1 plate, 230 g; KKM reference)", filter_foods(self.database, query=" NASI   LEMAK "))
         self.assertIn("Char Kuey Teow (1 plate)", filter_foods(self.database, query="char kway teow"))
 
     def test_recent_is_unique_bounded_and_excludes_unknown_foods(self):

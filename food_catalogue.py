@@ -1,4 +1,5 @@
 """Bilingual display labels and filters; stable English IDs retain nutrition data."""
+from nutrition_registry import REFERENCE_RECORDS, HIDDEN_LEGACY_IDS
 
 ALL_FOODS = "全部食物 · All foods"
 RECENT_FOODS = "最近使用 · Recent"
@@ -74,7 +75,17 @@ FOOD_META = {
     "Plain Water": ("白开水", "饮料 · Drinks"),
 }
 
+FOOD_META.update({key: (item["zh"], item["category"]) for key, item in REFERENCE_RECORDS.items()})
+
+
 def food_label(food_id):
+    reference = REFERENCE_RECORDS.get(food_id)
+    if reference:
+        portions = {"1 bowl": "1碗", "1 plate": "1盘", "1 piece": "1片", "1 set": "1份",
+                    "1 pack": "1包", "1 pot": "1煲", "1 scoop": "1勺", "1 cup": "1杯"}
+        portion = portions.get(reference["portion"], reference["portion"])
+        name = food_id.rsplit(" (", 1)[0]
+        return f"{reference['zh']}（{portion}，{reference['weight_g']:g}g） · {name}"
     metadata = FOOD_META.get(food_id)
     return f"{metadata[0]} · {food_id}" if metadata else food_id
 
@@ -97,21 +108,26 @@ SEARCH_ALIASES = {
 }
 
 
+SEARCH_ALIASES.update({key: item["aliases"] + " " + item["original_name"] for key, item in REFERENCE_RECORDS.items()})
+
+
 def _search_text(value):
     return " ".join(value.casefold().split())
 
 
 def filter_foods(database, category=ALL_FOODS, query="", recent=()):
     query = _search_text(query)
+    visible = [key for key in database if key not in HIDDEN_LEGACY_IDS]
+    visible.sort(key=lambda key: key not in REFERENCE_RECORDS)
     # A typed food name always searches the entire database. Categories only
     # narrow browsing when the search box is empty.
     if query:
         return [
-            key for key in database
+            key for key in visible
             if query in _search_text(food_label(key) + " " + SEARCH_ALIASES.get(key, ""))
         ]
     if category == RECENT_FOODS:
-        return list(dict.fromkeys(item for item in recent if item in database))
+        return list(dict.fromkeys(item for item in recent if item in database and item not in HIDDEN_LEGACY_IDS))
     if category == ALL_FOODS:
-        return list(database)
-    return [key for key in database if FOOD_META.get(key, ("", ""))[1] == category]
+        return visible
+    return [key for key in visible if FOOD_META.get(key, ("", ""))[1] == category]

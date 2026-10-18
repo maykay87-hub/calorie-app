@@ -7,6 +7,7 @@ from datetime import date
 from tracker_state import logout, select_draft
 from tracker_storage import load_day, save_day
 from profile_storage import ACTIVITIES, load_profile, save_profile
+from nutrition_registry import SOURCE, REFERENCE_RECORDS, reference_database, make_food_entry, format_energy
 from food_catalogue import ALL_FOODS, RECENT_FOODS, CATEGORIES, MEAL_LABELS, food_label, filter_foods, remember_food
 
 # --- 1. APP CONFIGURATION ---
@@ -49,7 +50,7 @@ def format_log_to_string(log_list, type="food"):
     text_summary = []
     for item in log_list:
         if type == "food":
-            text_summary.append(f"{item['Meal']}: {item['Food']} (x{item['Qty']})")
+            text_summary.append(f"{item['Meal']}: {food_label(item['Food'])} (x{item['Qty']})")
         else:
             text_summary.append(f"{item['Activity']} ({item['Duration']} mins)")
     return ", ".join(text_summary)
@@ -363,6 +364,8 @@ food_database = {
     "Plain Water": {"Cals": 0, "Prot": 0, "Carbs": 0, "Fat": 0}
 }
 
+food_database.update(reference_database())
+
 exercise_database = {
     "Zumba / Aerobics": 250, "Pound (Cardio Drumming)": 240, "Jogging": 240,
     "Swimming (Laps)": 230, "Badminton (Competitive)": 220, "Cycling": 200,
@@ -444,9 +447,9 @@ remaining = daily_needs - net_calories if daily_needs is not None else None
 
 st.markdown(
     f'<div class="mb-summary" role="group" aria-label="每日热量 Daily calories">'
-    f'<dl class="mb-stat"><dt>饮食 Food</dt><dd>{int(total_intake):,}<small>kcal</small></dd></dl>'
-    f'<dl class="mb-stat"><dt>运动 Exercise</dt><dd>{int(total_burned):,}<small>kcal</small></dd></dl>'
-    f'<dl class="mb-stat mb-stat-net"><dt>净值 Net</dt><dd>{int(net_calories):,}<small>kcal</small></dd></dl>'
+    f'<dl class="mb-stat"><dt>饮食 Food</dt><dd>{format_energy(total_intake)}<small>kcal</small></dd></dl>'
+    f'<dl class="mb-stat"><dt>运动 Exercise</dt><dd>{format_energy(total_burned)}<small>kcal</small></dd></dl>'
+    f'<dl class="mb-stat mb-stat-net"><dt>净值 Net</dt><dd>{format_energy(net_calories)}<small>kcal</small></dd></dl>'
     f'</div>',
     unsafe_allow_html=True,
 )
@@ -454,9 +457,9 @@ if daily_needs is not None:
     progress = min(max(net_calories / daily_needs, 0.0), 1.0)
     st.progress(progress)
     if remaining < 0:
-        st.caption(f"高于当前目标 Above target: {abs(int(remaining)):,} kcal")
+        st.caption(f"高于当前目标 Above target: {format_energy(abs(remaining))} kcal")
     else:
-        st.caption(f"距当前目标 Remaining: {int(remaining):,} kcal")
+        st.caption(f"距当前目标 Remaining: {format_energy(remaining)} kcal")
 
 else:
     st.caption("个人资料暂不可用，当前不显示热量目标。 Energy target unavailable until your profile loads.")
@@ -500,15 +503,29 @@ with tab1:
     if choices:
         if st.session_state.get("selected_food_id") not in choices:
             st.session_state["selected_food_id"] = choices[0]
+        food = st.selectbox(
+            "食物 · Food", choices, format_func=food_label, key="selected_food_id"
+        )
+        reference = REFERENCE_RECORDS.get(food)
+        if reference:
+            st.caption(f"参考1份 · Reference serving: {reference['weight_g']:g} g · {reference['energy_kcal']:g} kcal")
+        with st.expander("份量与资料来源 · Portion & source"):
+            if reference:
+                source_url = SOURCE["url"] + f"#page={reference['pdf_page']}"
+                st.markdown(f"[KKM Bank Kalori · PDF 第{reference['pdf_page']}页]({source_url})")
+                st.write(reference["original_name"])
+                code = reference["reference_code"]
+                st.caption(f"原始参考 · Original reference: {code} — {SOURCE['reference_codes'][code]}")
+                st.caption("这是指定份量的参考热量，摊位配方和实际份量会影响结果。 Reference energy is portion-specific; recipes and actual portions vary.")
+                st.caption("来源未提供蛋白质、碳水和脂肪；表格以 — 显示。 Macronutrients are not supplied by this source.")
+            else:
+                st.caption("原有交换份估算，逐项来源和重量待复核。 Original exchange estimate; item-level source and weight remain under review.")
         with st.form("add_food_form", clear_on_submit=False):
             meal = st.selectbox(
                 "餐次 · Meal", list(MEAL_LABELS), format_func=MEAL_LABELS.get
             )
-            food = st.selectbox(
-                "食物 · Food", choices, format_func=food_label, key="selected_food_id"
-            )
             qty = st.selectbox("份数 · Servings", [0.5, 1.0, 1.5, 2.0, 2.5, 3.0], index=1)
-            st.caption("1份 = 食物名称标示的份量。 One serving follows the portion in the food name.")
+            st.caption("1份 = 上方标示份量；吃半份请选择0.5。 One serving follows the portion above.")
             add_meal = st.form_submit_button("添加饮食 · Add meal", type="primary", use_container_width=True)
     elif category == RECENT_FOODS and not query.strip() and not st.session_state.get("recent_food_names"):
         st.info("还没有最近使用的食物，请先选其他分类添加。 No recent foods yet; choose another category to start.")
@@ -519,24 +536,21 @@ with tab1:
         st.session_state["recent_food_names"] = remember_food(
             st.session_state.get("recent_food_names", []), food
         )
-        st.session_state.food_log.append({
-            "Meal": meal, "Food": food, "Qty": qty, 
-            "Calories": food_database[food]["Cals"] * qty,
-            "Protein": food_database[food]["Prot"] * qty,
-            "Carbs": food_database[food]["Carbs"] * qty,
-            "Fat": food_database[food]["Fat"] * qty
-        })
+        st.session_state.food_log.append(make_food_entry(food_database, food, meal, qty))
         st.rerun()
 
     if st.session_state.food_log:
-        display_foods = pd.DataFrame(st.session_state.food_log)
+        display_foods = pd.DataFrame(st.session_state.food_log).reindex(
+            columns=["Meal", "Food", "Qty", "Calories", "Protein", "Carbs", "Fat"]
+        )
         display_foods["Food"] = display_foods["Food"].map(food_label)
         display_foods["Meal"] = display_foods["Meal"].map(lambda value: MEAL_LABELS.get(value, value))
         st.dataframe(display_foods.rename(columns={
             "Meal": "餐次 Meal", "Food": "食物 Food", "Qty": "份数", "Calories": "kcal",
             "Protein": "蛋白质 g", "Carbs": "碳水 g", "Fat": "脂肪 g",
         }), use_container_width=True, hide_index=True)
-        st.caption(f"饮食合计 Food total: {int(total_intake):,} kcal")
+        st.caption(f"饮食合计 Food total: {format_energy(total_intake)} kcal")
+        st.caption("— 表示未提供该项营养数值，不代表零。 A dash means not available, not zero.")
         
         col_undo, col_clear = st.columns(2)
         with col_undo:
@@ -564,7 +578,7 @@ with tab2:
         
     if st.session_state.exercise_log:
         st.dataframe(pd.DataFrame(st.session_state.exercise_log), use_container_width=True)
-        st.caption(f"运动合计 Exercise total: {int(total_burned):,} kcal")
+        st.caption(f"运动合计 Exercise total: {format_energy(total_burned)} kcal")
         
         col_undo, col_clear = st.columns(2)
         with col_undo:

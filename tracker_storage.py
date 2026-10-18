@@ -1,5 +1,6 @@
 """Read and update dated summaries without changing the original five columns."""
 import json
+import math
 
 HEADERS = ["Date", "Food_Log", "Exercise_Log", "Net_Calories", "username"]
 DETAIL_HEADERS = ["Food_JSON", "Exercise_JSON"]
@@ -29,8 +30,13 @@ def _decode(value, kind):
     for item in items:
         if not isinstance(item, dict) or not required.issubset(item):
             raise ValueError("Saved details are incomplete; no records were changed.")
-        if any(not isinstance(item[key], (int, float)) for key in numeric):
-            raise ValueError("Saved amounts are invalid; no records were changed.")
+        for key in numeric:
+            value = item[key]
+            if kind == "food" and key in {"Protein", "Carbs", "Fat"} and value is None:
+                continue
+            if (not isinstance(value, (int, float)) or isinstance(value, bool)
+                    or not math.isfinite(value) or value < 0):
+                raise ValueError("Saved amounts are invalid; no records were changed.")
     return items
 
 
