@@ -391,3 +391,25 @@ class AppFlowTests(unittest.TestCase):
         self.assertFalse(self.at.exception)
         self.assertIn('student rice', self.at.dataframe[0].value.to_string())
         self.assertNotIn('other rice', self.at.dataframe[0].value.to_string())
+
+    def test_new_profile_does_not_use_default_values_for_target(self):
+        self.profiles.rows = [PROFILE_HEADERS]
+        self.at = self.new_app()
+        self.assertFalse(any(x.label == '🔥 Daily Target' for x in self.at.metric))
+        self.button('添加饮食').click().run()
+        self.assertEqual(len(self.at.session_state['food_log']), 1)
+        self.number('身高').set_value(164.0).run()
+        self.number('体重').set_value(52.0).run()
+        self.assertFalse(any(x.label == '🔥 Daily Target' for x in self.at.metric))
+        self.button('保存个人资料').click().run()
+        self.assertFalse(self.at.exception)
+        self.assertEqual(next(x.value for x in self.at.metric if x.label == '🔥 Daily Target'), '1300 kcal')
+
+    def test_unsaved_profile_changes_keep_saved_energy_target(self):
+        self.assertEqual(next(x.value for x in self.at.metric if x.label == '🔥 Daily Target'), '1300 kcal')
+        self.number('体重').set_value(50.0).run()
+        self.assertEqual(next(x.value for x in self.at.metric if x.label == '🔥 Daily Target'), '1300 kcal')
+        self.assertTrue(any('Save profile changes' in x.value for x in self.at.caption))
+        self.button('保存个人资料').click().run()
+        self.assertFalse(self.at.exception)
+        self.assertEqual(next(x.value for x in self.at.metric if x.label == '🔥 Daily Target'), '1250 kcal')

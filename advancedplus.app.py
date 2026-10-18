@@ -161,12 +161,12 @@ def render_profile_panel():
     if baseline is None:
         st.caption("首次使用：请确认身高、体重和活动水平，再保存。 First visit: check the default values and save.")
     elif current_profile != baseline:
-        st.caption("有未保存的个人资料修改。 Unsaved profile changes.")
+        st.caption("个人资料修改尚未保存；热量目标仍按已保存资料计算。 Save profile changes to update your energy target.")
     else:
         st.caption("个人资料已保存，重新登入会自动载入。 Saved profile loads after sign-in.")
     st.caption("饮食和运动记录请使用主页面的「保存当天记录」。 Save daily food and exercise separately on the main page.")
     st.divider()
-    return current_profile
+    return baseline
 
 # --- 3. SECURE LOGIN SYSTEM ---
 def check_password():
@@ -513,7 +513,10 @@ if daily_needs is not None:
         st.caption(f"距当前目标 Remaining: {format_energy(remaining)} kcal")
 
 else:
-    st.caption("个人资料暂不可用，当前不显示热量目标。 Energy target unavailable until your profile loads.")
+    if st.session_state.get("profile_loaded_user") == st.session_state["username"]:
+        st.caption("请在左侧个人资料确认身高、体重与活动水平并保存，再显示热量目标。饮食与运动可先记录。 Confirm and save your profile in the sidebar to show an energy target; you can log food and exercise now.")
+    else:
+        st.caption("个人资料暂不可用，当前不显示热量目标。 Energy target unavailable until your profile loads.")
 
 if st.session_state.food_log:
     protein = nutrient_coverage(st.session_state.food_log, "Protein")

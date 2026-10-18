@@ -49,8 +49,9 @@ class ProfilePanelTests(unittest.TestCase):
         panel, state, errors = self.panel(unavailable, loaded=True)
         with self.assertLogs(level="ERROR"):
             current = panel()
-        self.assertEqual(current["height_cm"], 164.0)
-        self.assertEqual(current["weight_kg"], 52.0)
+        self.assertIsNone(current)
+        self.assertEqual(state["profile_height_cm"], 164.0)
+        self.assertEqual(state["profile_weight_kg"], 52.0)
         self.assertIsNone(state["profile_baseline"])
         self.assertIn("open_profiles / PermissionError", errors[0])
 

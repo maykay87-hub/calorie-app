@@ -4,7 +4,7 @@ The test branch is `tracker-v2/mobile-entry-session-fixes`. Production main is u
 
 ## Automated checks
 
-105 tests pass, including 24 real Streamlit AppTest scenarios.
+107 tests pass, including 26 real Streamlit AppTest scenarios.
 
 Real Streamlit AppTest executes the complete application against in-memory Google Sheets doubles. It covers search changes, package-label input, missing values, serving and meal edits, individual deletion, shrinking entry lists, exercise duration edits, negative net energy, saving and fresh-session restore, separate date drafts, opening a day from history, logout and switching accounts, legacy replacement protection, failed-save retry, and profile failure/recovery and persistence. Pure unit tests separately verify per-record nutrient scaling, provenance, schema handling, empty gspread sheets, partial protein totals, latest-row history, and account/date separation.
 
@@ -109,3 +109,13 @@ complete totals, partial known totals and unavailable values; legacy or malforme
 details retain their text summaries. AppTest switches between two students and
 checks that only the selected student's summary appears. Unit tests verify the
 single read, latest-row rule, original-row preservation and partial protein.
+
+## Confirmed profile before energy target
+
+New accounts may record food/exercise immediately but have no energy target until
+they confirm and save their profile. Default input values no longer produce an
+apparently personalized target. Unsaved profile edits keep the target based on the
+saved profile; a caption explains how to update it. A failed profile save preserves
+the input fields and previous baseline. Existing daily records are not recalculated.
+AppTest covers a new profile through first save, food entry before profile save,
+and a weight change that updates the target only after successful profile save.
