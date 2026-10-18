@@ -31,7 +31,7 @@ class ReferenceFoodTests(unittest.TestCase):
 
     def test_matched_macros_are_scaled_and_source_is_saved(self):
         matched = [x for x in REFERENCE_RECORDS.values() if x.get("macronutrient_source")]
-        self.assertEqual(len(matched), 5)
+        self.assertEqual(len(matched), 6)
         for item in matched:
             source = item["macronutrient_source"]
             raw = source["per_100g"]

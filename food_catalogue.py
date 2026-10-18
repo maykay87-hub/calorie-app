@@ -1,4 +1,6 @@
 """Bilingual display labels and filters; stable English IDs retain nutrition data."""
+import re
+import unicodedata
 from nutrition_registry import REFERENCE_RECORDS, HIDDEN_LEGACY_IDS
 
 ALL_FOODS = "全部食物 · All foods"
@@ -112,7 +114,13 @@ SEARCH_ALIASES.update({key: item["aliases"] + " " + item["original_name"] for ke
 
 
 def _search_text(value):
-    return " ".join(value.casefold().split())
+    return " ".join(re.sub(r"[^\w\s]", " ", unicodedata.normalize("NFKC", value).casefold()).split())
+
+
+def _matches_search(query, searchable):
+    # Accept reordered words and omitted spaces without guessing a different dish.
+    return (all(word in searchable for word in query.split())
+            or query.replace(" ", "") in searchable.replace(" ", ""))
 
 
 def filter_foods(database, category=ALL_FOODS, query="", recent=()):
@@ -124,7 +132,7 @@ def filter_foods(database, category=ALL_FOODS, query="", recent=()):
     if query:
         return [
             key for key in visible
-            if query in _search_text(food_label(key) + " " + SEARCH_ALIASES.get(key, ""))
+            if _matches_search(query, _search_text(food_label(key) + " " + SEARCH_ALIASES.get(key, "")))
         ]
     if category == RECENT_FOODS:
         return list(dict.fromkeys(item for item in recent if item in database and item not in HIDDEN_LEGACY_IDS))

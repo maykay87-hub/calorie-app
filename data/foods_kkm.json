@@ -610,13 +610,26 @@
       "portion": "1 piece",
       "weight_g": 100,
       "energy_kcal": 300,
-      "protein_g": null,
-      "carbs_g": null,
-      "fat_g": null,
+      "protein_g": 9.0,
+      "carbs_g": 46.6,
+      "fat_g": 8.6,
       "pdf_page": 18,
       "reference_code": "MFC",
       "aliases": "chapati capati 恰巴蒂 印度烙饼",
-      "category": "本地餐食 · Local meals"
+      "category": "本地餐食 · Local meals",
+      "macronutrient_source": {
+        "title": "MyFCD 1997",
+        "food_code": "221001",
+        "url": "https://myfcd.moh.gov.my/myfcd97/index.php/site/detail_product/221001/0/10/-1/0/0/",
+        "per_100g": {
+          "Energy": 300.0,
+          "Protein": 9.0,
+          "Fat": 8.6,
+          "Carbohydrate": 46.6
+        },
+        "accessed": "2026-10-18",
+        "basis": "Matching preparation; scaled to KKM serving weight. Recipe estimate, not vendor-specific."
+      }
     },
     {
       "id": "Chapati with Dhal (1 set, 160 g; KKM reference)",

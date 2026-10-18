@@ -59,6 +59,15 @@ class FoodCatalogueTests(unittest.TestCase):
                                      recent=["unknown", "Egg (1 whole)", "Egg (1 whole)"]),
                          ["Egg (1 whole)"])
 
+    def test_phone_search_accepts_reordered_words_and_missing_spaces(self):
+        nasi = "Nasi Lemak Basic (1 plate, 230 g; KKM reference)"
+        dry = "Wantan Mee Dry (1 plate, 330 g; KKM reference)"
+        for query in ["nasilemak", "ＮＡＳＩ　ＬＥＭＡＫ", "lemak nasi"]:
+            self.assertIn(nasi, filter_foods(self.database, query=query))
+        self.assertIn(dry, filter_foods(self.database, query="dry wantan"))
+        self.assertNotIn(dry, filter_foods(self.database, query="soup wantan"))
+        self.assertEqual(filter_foods(self.database, query="unicorn noodle"), [])
+
     def test_filters_preserve_stable_ids_and_nutrition_values(self):
         original = copy.deepcopy(self.database)
         for category in [ALL_FOODS, RECENT_FOODS] + CATEGORIES:

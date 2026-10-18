@@ -32,9 +32,9 @@ Reference values are portion-specific estimates. Soup and dry versions must rema
 
 ## Macronutrient enrichment and editing (2026-10-18)
 
-Five MFC-coded KKM preparations now have matched MyFCD 1997 protein, carbohydrate
+Six MFC-coded KKM preparations now have matched MyFCD 1997 protein, carbohydrate
 and fat estimates: cooked white rice (101014), fried rice (221021), fried rice
-noodles (221013), plain roti canai (221023), and roti telur (221024).
+noodles (221013), plain roti canai (221023), roti telur (221024), and plain chapati (221001).
 The official per-100g values, food code, detail URL and access date are stored
 per record in `macronutrient_source`. Match checks use preparation name and an
 energy agreement within 2.5% after scaling to KKM weight; this tolerance is a
@@ -47,3 +47,27 @@ are never labeled full-day totals. Original exchange estimates remain explicitly
 unverified. Serving edits scale the saved snapshot, preserving unknown nutrients
 and provenance. Deletion and edits require the user's normal Save action; status
 compares the full draft against its last loaded/saved snapshot.
+
+
+## Label fallback and search (2026-10-18)
+
+Package-label entry supports per-serving, per-g and per-ml values. The label
+basis and amount eaten use the same unit. Energy is required; optional protein,
+carbohydrate and fat default to unknown, not zero. Entries snapshot the original
+label values with a `user_entered_package_label` source status. They are personal
+daily records, not verified additions to the shared food catalogue. Editing shows
+actual g/ml, then scales from the stored snapshot. Existing logged food values
+remain unchanged. No energy-from-macros assumption or vendor precision is added.
+
+Chapati enrichment uses official MyFCD 1997 food code 221001: per100g, 300kcal,
+protein9g, carbohydrate46.6g, fat8.6g. Both preparation and100g serving match the
+KKM entry. Cucumber code105031 was inspected but NOT merged: its per100g energy
+would imply21.76kcal for136g, differing from KKM15kcal, beyond the matching rule.
+
+Phone search accepts reordered words, Unicode full-width characters and omitted
+spaces. It does not invent an approximate substitute for an unmatched dish.
+
+Validation includes real Streamlit AppTest runs with an in-memory Sheets double:
+label add, validation failure, zero-amount edit rejection, quantity edit, deletion,
+save and restoration in a fresh session, and changes between matching/unmatched
+food searches. No credentials or live Sheets writes are used by these tests.

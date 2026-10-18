@@ -6,6 +6,7 @@ from oauth2client.service_account import ServiceAccountCredentials
 from datetime import date
 from tracker_state import logout, select_draft, daily_signature
 from entry_editor import rescale_food, rescale_exercise, nutrient_coverage
+from label_entry import make_label_entry, entry_amount_label
 from tracker_storage import load_day, save_day
 from profile_storage import ACTIVITIES, load_profile, save_profile
 from nutrition_registry import SOURCE, REFERENCE_RECORDS, reference_database, make_food_entry, format_energy
@@ -574,14 +575,42 @@ with tab1:
         st.session_state.food_log.append(make_food_entry(food_database, food, meal, qty))
         st.rerun()
 
+    with st.expander("找不到包装食品？按标签添加 · Add from package label"):
+        st.caption("填写同一栏的营养值，例如全部按每100g或每份；实际食用量使用相同单位。 Enter all nutrients from the same label column, using the same unit for the amount eaten.")
+        label_unit = st.selectbox("标签单位 · Label unit", ["serving", "g", "ml"],
+            format_func=lambda value: {"serving": "份 · Serving", "g": "克 · g", "ml": "毫升 · ml"}[value], key="label_unit")
+        with st.form(f"package_label_{entry_date}_{label_unit}"):
+            label_name = st.text_input("产品名称与口味 · Product & flavour", max_chars=120)
+            label_meal = st.selectbox("餐次 · Meal", list(MEAL_LABELS), format_func=MEAL_LABELS.get, key="label_meal")
+            label_basis = st.number_input("标签所列份量 · Label amount", min_value=0.1,
+                value=1.0 if label_unit == "serving" else 100.0, step=1.0)
+            label_eaten = st.number_input("实际食用量（相同单位） · Amount eaten", min_value=0.1,
+                value=1.0 if label_unit == "serving" else 100.0, step=1.0)
+            label_kcal = st.number_input("标签热量 · kcal（必填 · required）", min_value=0.0, value=None, step=1.0)
+            st.caption("以下可留空；只有标签写明0才填写0。 Leave unknown values blank; enter zero only when stated on the label.")
+            label_protein = st.number_input("标签蛋白质 · Protein g", min_value=0.0, value=None, step=0.1)
+            label_carbs = st.number_input("标签碳水 · Carbohydrate g", min_value=0.0, value=None, step=0.1)
+            label_fat = st.number_input("标签脂肪 · Fat g", min_value=0.0, value=None, step=0.1)
+            label_add = st.form_submit_button("添加标签记录 · Add label entry", use_container_width=True)
+        if label_add:
+            try:
+                label_entry = make_label_entry(label_name, label_meal, label_unit, label_basis,
+                    label_eaten, label_kcal, label_protein, label_carbs, label_fat)
+            except ValueError as exc:
+                st.error(str(exc))
+            else:
+                st.session_state.food_log.append(label_entry)
+                st.rerun()
+
     if st.session_state.food_log:
         display_foods = pd.DataFrame(st.session_state.food_log).reindex(
             columns=["Meal", "Food", "Qty", "Calories", "Protein", "Carbs", "Fat"]
         )
         display_foods["Food"] = display_foods["Food"].map(food_label)
+        display_foods["Qty"] = [entry_amount_label(entry) for entry in st.session_state.food_log]
         display_foods["Meal"] = display_foods["Meal"].map(lambda value: MEAL_LABELS.get(value, value))
         st.dataframe(display_foods.rename(columns={
-            "Meal": "餐次 Meal", "Food": "食物 Food", "Qty": "份数", "Calories": "kcal",
+            "Meal": "餐次 Meal", "Food": "食物 Food", "Qty": "食用量 Amount", "Calories": "kcal",
             "Protein": "蛋白质 g", "Carbs": "碳水 g", "Fat": "脂肪 g",
         }), use_container_width=True, hide_index=True)
         st.caption(f"饮食合计 Food total: {format_energy(total_intake)} kcal")
@@ -590,16 +619,25 @@ with tab1:
         with st.expander("修改或删除一笔 · Edit food entry"):
             food_rows = st.session_state.food_log
             edit_index = st.selectbox("选择记录 · Entry", range(len(food_rows)),
-                format_func=lambda i: f"{i + 1}. {MEAL_LABELS.get(food_rows[i]['Meal'], food_rows[i]['Meal'])} · {food_label(food_rows[i]['Food'])} · {food_rows[i]['Qty']:g}份",
+                format_func=lambda i: f"{i + 1}. {MEAL_LABELS.get(food_rows[i]['Meal'], food_rows[i]['Meal'])} · {food_label(food_rows[i]['Food'])} · {entry_amount_label(food_rows[i])}",
                 key=f"food_edit_index_{entry_date}")
             selected = food_rows[edit_index]
+            selected_source = selected.get("Source", {})
+            label_basis = selected_source.get("label_amount", 1.0) if selected_source.get("status") == "user_entered_package_label" else 1.0
+            label_unit = selected_source.get("label_unit", "serving")
+            amount_label = f"实际食用量 · Amount eaten ({label_unit})" if label_unit in {"g", "ml"} else "修改份数 · Servings"
             with st.form(f"food_edit_{entry_date}_{edit_index}_{selected['Qty']}"):
-                new_qty = st.number_input("修改份数 · Servings", min_value=0.1, value=float(selected["Qty"]), step=0.5)
+                new_amount = st.number_input(amount_label, min_value=0.0,
+                    value=float(selected["Qty"] * label_basis), step=0.5)
                 update_food = st.form_submit_button("更新份数 · Update servings", use_container_width=True)
                 delete_food = st.form_submit_button("删除这一笔 · Delete entry", use_container_width=True)
             if update_food:
-                food_rows[edit_index] = rescale_food(selected, new_qty)
-                st.rerun()
+                try:
+                    food_rows[edit_index] = rescale_food(selected, new_amount / label_basis)
+                except ValueError:
+                    st.error("食用量必须大于零 · Enter an amount greater than zero.")
+                else:
+                    st.rerun()
             if delete_food:
                 food_rows.pop(edit_index)
                 st.session_state.pop(f"food_edit_index_{entry_date}", None)
