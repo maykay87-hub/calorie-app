@@ -9,6 +9,8 @@ from unittest.mock import patch
 from test_tracker_storage import Sheet, HEADERS, FOOD
 from tracker_storage import save_day
 from profile_storage import HEADERS as PROFILE_HEADERS
+from student_notes import NOTE_HEADERS, FILE_HEADERS
+from test_student_notes import NoteSheet
 
 
 class RecordSheet(Sheet):
@@ -22,8 +24,11 @@ class AppFlowTests(unittest.TestCase):
         self.sheet = RecordSheet([HEADERS])
         self.profiles = RecordSheet([PROFILE_HEADERS, ['student', '162', '52', 'Sedentary (x25)', '']])
         feedback = self.feedback = RecordSheet([['username', 'month', 'note']])
+        self.notes = NoteSheet([NOTE_HEADERS])
+        self.attachments = NoteSheet([FILE_HEADERS])
         book = SimpleNamespace(get_worksheet=lambda i: self.sheet,
-                               worksheet=lambda name: self.profiles if name == 'profiles' else feedback)
+            worksheet=lambda name: {'profiles': self.profiles, 'feedback': feedback,
+                                    'student_notes': self.notes, 'student_attachments': self.attachments}[name])
         client = SimpleNamespace(open_by_key=lambda key: book)
         self.auth = patch('gspread.authorize', return_value=client)
         self.creds = patch('oauth2client.service_account.ServiceAccountCredentials.from_json_keyfile_dict', return_value=object())
@@ -57,6 +62,57 @@ class AppFlowTests(unittest.TestCase):
         self.number('标签蛋白质').set_value(10.0)
         self.button('添加标签记录').click().run()
         self.assertFalse(self.at.exception)
+
+    def test_remarks_save_restore_pause_remaining_and_reach_coach(self):
+        next(x for x in self.at.text_area if x.label.startswith('备注')).set_value('Half bowl pan mee; food not found')
+        next(b for b in self.at.button if b.label.startswith('保存补充记录')).click().run()
+        self.assertFalse(self.at.exception)
+        self.assertEqual(len(self.notes.rows), 2)
+        self.assertTrue(any('Food calories are incomplete' in x.value for x in self.at.info))
+        self.assertFalse(any('kcal remaining' in x.value for x in self.at.markdown))
+        restored = self.new_app()
+        self.assertTrue(any('Half bowl pan mee' in x.value for x in restored.text))
+        self.at.secrets['passwords'] = {'student': 'test-pass', 'admin': 'coach-pass'}
+        self.at.session_state['username'] = 'admin'
+        self.at.run()
+        self.assertFalse(self.at.exception)
+        self.assertTrue(any('Half bowl pan mee' in x.value for x in self.at.text))
+
+    def test_attachment_form_persists_and_can_be_downloaded_after_new_session(self):
+        upload = SimpleNamespace(name='sample-label.pdf', getvalue=lambda: b'%PDF-1.7\nExample only')
+        with patch('streamlit.file_uploader', return_value=[upload]):
+            self.at.run()
+            next(b for b in self.at.button if b.label.startswith('保存补充记录')).click().run()
+        self.assertFalse(self.at.exception)
+        self.assertGreater(len(self.attachments.rows), 1)
+        restored = self.new_app()
+        self.assertTrue(any('sample-label.pdf' in x.value for x in restored.text))
+        next(b for b in restored.button if b.label.startswith('准备下载附件')).click().run()
+        self.assertFalse(restored.exception)
+        self.assertEqual(len(restored.get('download_button')), 1)
+
+    def test_pending_food_can_be_marked_counted_only_after_saved_food(self):
+        next(x for x in self.at.text_area if x.label.startswith('备注')).set_value('Missing food')
+        next(b for b in self.at.button if b.label.startswith('保存补充记录')).click().run()
+        next(b for b in self.at.button if b.label.startswith('已补齐饮食')).click().run()
+        self.assertTrue(any('Add and save' in x.value for x in self.at.error))
+        self.button('Add Meal').click().run()
+        self.at.button(key='save_bottom_food').click().run()
+        next(b for b in self.at.button if b.label.startswith('已补齐饮食')).click().run()
+        self.assertFalse(self.at.exception)
+        self.assertTrue(any('kcal remaining' in x.value for x in self.at.markdown))
+        self.assertTrue(any('Missing food' in x.value for x in self.at.text))
+
+    def test_failed_remark_save_keeps_input_and_food_flow(self):
+        remark = next(x for x in self.at.text_area if x.label.startswith('备注'))
+        remark.set_value('Please check this food')
+        with patch.object(self.notes, 'append_row', side_effect=ConnectionError('offline')):
+            next(b for b in self.at.button if b.label.startswith('保存补充记录')).click().run()
+        self.assertFalse(self.at.exception)
+        self.assertEqual(next(x for x in self.at.text_area if x.label.startswith('备注')).value, 'Please check this food')
+        self.assertEqual(len(self.notes.rows), 1)
+        self.button('Add Meal').click().run()
+        self.assertEqual(len(self.at.session_state['food_log']), 1)
 
     def test_student_feedback_is_account_scoped_and_refreshes(self):
         self.feedback.rows += [['another', '2026-10', 'Other private note'],

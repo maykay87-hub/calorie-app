@@ -4,6 +4,21 @@ from unittest.mock import patch
 
 
 class DemoTests(unittest.TestCase):
+    def test_demo_remarks_pause_remaining_and_can_be_counted_without_google(self):
+        from streamlit.testing.v1 import AppTest
+        with patch('gspread.authorize', side_effect=AssertionError('Demo must never connect to Google')):
+            app = AppTest.from_file(str(Path(__file__).with_name('advancedplus.app.py')), default_timeout=15)
+            app.query_params['demo'] = '1'
+            app.run()
+            next(x for x in app.text_area if x.label.startswith('备注')).set_value('Missing food example')
+            next(b for b in app.button if b.label.startswith('保存示范备注')).click().run()
+            self.assertFalse(app.exception)
+            self.assertTrue(any('Remaining paused' in x.value for x in app.info))
+            next(b for b in app.button if b.label.startswith('Add Meal')).click().run()
+            next(b for b in app.button if b.label.startswith('体验保存')).click().run()
+            next(b for b in app.button if b.label.startswith('已补齐饮食')).click().run()
+            self.assertTrue(any('kcal remaining' in x.value for x in app.markdown))
+
     def test_demo_works_without_secrets_or_any_google_connection(self):
         from streamlit.testing.v1 import AppTest
         with patch('gspread.authorize', side_effect=AssertionError('Demo must never connect to Google')):

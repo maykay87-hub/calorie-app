@@ -13,6 +13,8 @@ from label_library import load_personal_labels, remember_label, template_key, re
 from tracker_storage import load_day, save_day, day_snapshot, SaveConflictError
 from tracker_history import load_history, load_coach_history
 from coach_feedback import load_feedback, publish_feedback, review_period
+from student_notes_ui import render_student_notes, render_note_history
+from student_notes import load_notes, annotate_energy_status
 from tracker_export import export_history_csv, export_draft
 from profile_storage import ACTIVITIES, load_profile, save_profile
 from nutrition_registry import SOURCE, SG_SOURCE, REFERENCE_RECORDS, reference_database, reference_portion, make_food_entry, format_energy
@@ -57,6 +59,14 @@ def get_sheet_connection(type="main", create=False):
         except gspread.WorksheetNotFound:
             if create:
                 sheet = spreadsheet.add_worksheet(title="profiles", rows=100, cols=5)
+            else:
+                return None
+    elif type in {"student_notes", "student_attachments"}:
+        try:
+            sheet = spreadsheet.worksheet(type)
+        except gspread.WorksheetNotFound:
+            if create:
+                sheet = spreadsheet.add_worksheet(title=type, rows=100, cols=8 if type == "student_notes" else 5)
             else:
                 return None
     elif type == "feedback":
@@ -236,6 +246,11 @@ if st.session_state["username"] == "admin":
             col3.metric("最新日期 · Latest date", max(row["Date"] for row in records))
             chosen_user = st.selectbox("查看学生 · Student", users, key="coach_student")
             student_records = [row for row in records if row["username"] == chosen_user]
+            try:
+                coach_notes = load_notes(get_sheet_connection('student_notes'), chosen_user)
+            except Exception:
+                coach_notes = None
+            student_records = annotate_energy_status(student_records, coach_notes)
             view = []
             for row in student_records:
                 if row["Protein"] is not None:
@@ -246,12 +261,15 @@ if st.session_state["username"] == "admin":
                     protein_text = "— 未提供"
                 status_text = {"detailed": "明细记录 · Detailed", "legacy": "旧摘要 · Older summary",
                                "invalid_details": "明细需检查 · Details need review"}[row["status"]]
+                if row['Energy_complete'] is not True:
+                    status_text += ' · 热量待补充／检查'
                 view.append({"日期 Date": row["Date"], "净热量 Net kcal": row["Net_Calories"],
                              "蛋白质 Protein": protein_text, "记录类型 Status": status_text,
                              "饮食 Food": row["Food_Log"], "运动 Exercise": row["Exercise_Log"]})
             st.dataframe(pd.DataFrame(view), use_container_width=True, hide_index=True)
             st.caption("部分蛋白质仅为有资料食物的合计，不是全天总量。 Partial protein counts known foods only.")
-            chart = pd.DataFrame(student_records).dropna(subset=["Net_Calories"]).sort_values("Date")
+            chart = pd.DataFrame([r for r in student_records if r['Energy_complete'] is True],
+                                 columns=['Date', 'Net_Calories']).dropna(subset=["Net_Calories"]).sort_values("Date")
             if not chart.empty:
                 st.line_chart(chart.assign(Date=pd.to_datetime(chart["Date"])), x="Date", y="Net_Calories")
 
@@ -266,6 +284,8 @@ if st.session_state["username"] == "admin":
             review_user = st.session_state["coach_student"]
         else:
             review_user = st.selectbox("查看学生 · Student", review_users, key="coach_student")
+        st.subheader("学员补充记录 · Student remarks")
+        render_note_history(get_sheet_connection, review_user, prefix="coach_notes")
         st.subheader("💌 发布个别反馈 · Dietitian review")
         st.write(f"接收学员 · Recipient: {review_user}")
         with st.form(f"coach_review_{review_user}"):
@@ -362,6 +382,7 @@ with st.expander("使用提示 · How to use"):
     st.markdown("1. **饮食 Food Log：**选日期、餐次、食物与份量 → **Add Meal**。\n"
                 "2. **运动 Exercise Log：**选运动、填分钟 → **添加运动 Add activity**。\n"
                 "3. 记录后按 **保存当天记录 Save**；到 **Wellness History** 回看或打开某天修改。\n\n"
+                "找不到食物时，可用「备注／附上文件」保存；热量待补充时，余额暂不显示。\n\n"
                 "**Remaining = 今日目标 − 饮食摄入 + 运动消耗。**负数代表高于当前目标。")
 if draft.get("legacy"):
     st.caption("此日期是旧版摘要。可查看原记录；如需重新填写，请先添加完整记录再确认替换。 Older summary: view below, or enter a complete replacement.")
@@ -506,8 +527,15 @@ else:
 net_calories = total_intake - total_burned
 remaining = daily_needs - net_calories if daily_needs is not None else None
 
-st.markdown(calorie_summary(total_intake, total_burned, net_calories, remaining), unsafe_allow_html=True)
-if daily_needs is not None:
+supplementary_notes, notes_available, all_student_notes = render_student_notes(get_sheet_connection, st.session_state["username"], entry_date)
+pending_foods = sum(1 for note in supplementary_notes if note["needs_calories"])
+incomplete_energy = pending_foods > 0 or not notes_available
+st.markdown(calorie_summary(total_intake, total_burned, net_calories,
+    None if incomplete_energy else remaining), unsafe_allow_html=True)
+if incomplete_energy:
+    st.info(f"当前只显示已计热量；另有 {pending_foods} 笔食物热量待补充，暂不显示今日余额。 Food calories are incomplete; Remaining is paused."
+            if notes_available else "补充记录暂时无法读取，暂不显示今日余额。 Remaining is paused until supplementary records load.")
+elif daily_needs is not None:
     st.markdown('<div class="mb-progress-title">Daily Energy Progress · 今日热量进度</div>', unsafe_allow_html=True)
     st.progress(min(max(net_calories / daily_needs, 0.0), 1.0))
     st.markdown(remaining_panel(remaining), unsafe_allow_html=True)
@@ -835,6 +863,7 @@ with tab2:
 
 with tab3:
     st.markdown('<h2 class="mb-section-title">📜 Your Wellness History <small>我的生活记录</small></h2>', unsafe_allow_html=True)
+    render_note_history(get_sheet_connection, st.session_state["username"], notes=all_student_notes)
     refresh_history = st.button("更新历史 · Refresh history")
     try:
         cache = st.session_state.get("history_cache")
@@ -842,7 +871,10 @@ with tab3:
             records = load_history(get_sheet_connection("main"), st.session_state["username"])
             cache = {"username": st.session_state["username"], "time": monotonic(), "records": records}
             st.session_state["history_cache"] = cache
-        records = cache["records"]
+        history_notes = all_student_notes
+        if history_notes is None:
+            st.warning('补充记录暂时无法核对；下方仅显示已计热量。 Supplementary records could not be checked.')
+        records = annotate_energy_status(cache["records"], history_notes)
         if not records:
             st.info("还没有已保存记录。添加饮食或运动后请保存。 No saved history yet.")
         else:
@@ -850,9 +882,11 @@ with tab3:
                 data=export_history_csv(records), file_name="may-bloom-history.csv", mime="text/csv", on_click="ignore")
             history = pd.DataFrame(records)
             display = history[["Date", "Net_Calories"]].copy()
+            display['记录状态 Status'] = ['已计入 · Counted' if r['Energy_complete'] is True
+                else '热量待补充 · Incomplete' if r['Energy_complete'] is False else '待核对 · Unchecked' for r in records]
             st.dataframe(display.rename(columns={"Date": "日期 Date", "Net_Calories": "净热量 Net kcal"}),
                          use_container_width=True, hide_index=True)
-            chart = history.dropna(subset=["Net_Calories"]).sort_values("Date")
+            chart = history[history['Energy_complete'].eq(True)].dropna(subset=["Net_Calories"]).sort_values("Date")
             if not chart.empty:
                 chart = chart.assign(Date=pd.to_datetime(chart["Date"]))
                 st.line_chart(chart, x="Date", y="Net_Calories", color="#cf6d8b")

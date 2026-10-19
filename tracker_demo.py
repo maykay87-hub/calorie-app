@@ -8,6 +8,7 @@ from nutrition_registry import reference_database, make_food_entry
 from profile_storage import ACTIVITIES, validate_profile
 from tracker_state import change_entries, undo_entries
 from tracker_ui import MAY_BLOOM_CSS, calorie_summary, remaining_panel
+from student_notes import prepare_note
 
 
 def _open_day(day):
@@ -52,15 +53,20 @@ def render_demo():
     days = st.session_state.setdefault('demo_days', {})
     draft = days.setdefault(str(selected_day), {'food_log': [], 'exercise_log': []})
     entries = draft['food_log']
+    notes = draft.setdefault('notes', [])
     burned = sum(row['Calories Burned'] for row in draft['exercise_log'])
     st.session_state['demo_foods'] = entries
     st.session_state['demo_burned'] = burned
     intake = sum(item['Calories'] for item in entries)
     remaining = target - intake + burned
-    st.markdown(calorie_summary(intake, burned, intake - burned, remaining), unsafe_allow_html=True)
-    st.markdown('<p class="mb-progress-title">Daily Energy Progress · 今日热量进度</p>', unsafe_allow_html=True)
-    st.progress(max(0.0, min(1.0, (intake - burned) / target)))
-    st.markdown(remaining_panel(remaining), unsafe_allow_html=True)
+    pending_count = sum(1 for note in notes if note['needs_calories'])
+    st.markdown(calorie_summary(intake, burned, intake - burned, None if pending_count else remaining), unsafe_allow_html=True)
+    if pending_count:
+        st.info(f'另有 {pending_count} 笔食物热量待补充，暂不显示余额 · Remaining paused for uncounted food')
+    else:
+        st.markdown('<p class="mb-progress-title">Daily Energy Progress · 今日热量进度</p>', unsafe_allow_html=True)
+        st.progress(max(0.0, min(1.0, (intake - burned) / target)))
+        st.markdown(remaining_panel(remaining), unsafe_allow_html=True)
     database = reference_database()
     foods = filter_foods(database)
     saved = st.session_state.setdefault('demo_saved', {})
@@ -85,6 +91,42 @@ def render_demo():
         if b.button('清空饮食 · Clear food', disabled=not entries, use_container_width=True):
             change_entries(draft, 'food', [])
             st.rerun()
+        with st.expander('找不到食物？写备注／附上文件 · Remarks & attachments'):
+            st.caption('仅体验用途，请只上传示范文件；不会写入学员数据库。')
+            generation = st.session_state.get('demo_note_version', 0)
+            with st.form(f'demo_remark_{selected_day}_{generation}'):
+                note_meal = st.selectbox('餐次 · Meal', list(MEAL_LABELS), format_func=MEAL_LABELS.get)
+                remark = st.text_area('备注 · Remarks', max_chars=2000)
+                files = st.file_uploader('照片或文件（选填） · Photos or files', type=['jpg', 'jpeg', 'png', 'webp', 'pdf'],
+                                        accept_multiple_files=True, max_upload_size=2)
+                uncounted = st.checkbox('这笔食物尚未计入热量 · Food not counted yet', value=True)
+                add_note = st.form_submit_button('保存示范备注 · Save demo remarks')
+            if add_note:
+                try:
+                    if len(notes) >= 5:
+                        raise ValueError('演示每个日期最多五笔备注，可按重新体验清空。')
+                    note = prepare_note('demo', selected_day, note_meal, remark,
+                                        [(file.name, file.getvalue()) for file in files], uncounted)
+                except ValueError as exc:
+                    st.error(str(exc))
+                else:
+                    if not any(n['note_id'] == note['note_id'] for n in notes):
+                        notes.append(note)
+                    st.session_state['demo_note_version'] = generation + 1
+                    st.rerun()
+            for note in notes:
+                st.text(note['Remarks'])
+                for index, file in enumerate(note['files']):
+                    st.download_button(file['name'], file['data'], file_name=file['name'], mime=file['mime'],
+                                       key=f"demo_file_{note['note_id']}_{index}", on_click='ignore')
+                if note['needs_calories']:
+                    st.caption('热量待补充 · Not counted yet')
+                    if st.button('已补齐饮食热量 · Mark counted', key=f"demo_counted_{note['note_id']}"):
+                        if not saved.get(str(selected_day), {}).get('food_log'):
+                            st.error('请先添加并保存当天饮食 · Add and save the food first')
+                        else:
+                            note['needs_calories'] = False
+                            st.rerun()
     with exercise_tab:
         activities = {'Yoga': 100, 'Walking (Brisk)': 130, 'Jogging': 240}
         with st.form('demo_exercise_form'):

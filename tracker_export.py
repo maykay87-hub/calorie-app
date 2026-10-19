@@ -17,7 +17,8 @@ def _text(value):
 def export_history_csv(records):
     output = io.StringIO(newline="")
     fields = ["Date", "Net_Calories_kcal", "Protein_complete_g", "Protein_known_g",
-              "Protein_missing_entries", "Food_entries", "Status", "Food_Log", "Exercise_Log"]
+              "Protein_missing_entries", "Food_entries", "Status", "Food_Log", "Exercise_Log",
+              "Pending_calorie_notes", "Energy_complete"]
     writer = csv.DictWriter(output, fieldnames=fields)
     writer.writeheader()
     for item in records:
@@ -25,7 +26,9 @@ def export_history_csv(records):
                          "Protein_complete_g": item["Protein"], "Protein_known_g": item["known_protein"],
                          "Protein_missing_entries": item["missing_protein_entries"], "Food_entries": item["food_entries"],
                          "Status": item["status"], "Food_Log": _text(item["Food_Log"]),
-                         "Exercise_Log": _text(item["Exercise_Log"])})
+                         "Exercise_Log": _text(item["Exercise_Log"]),
+                         "Pending_calorie_notes": item.get('Pending_calorie_notes'),
+                         "Energy_complete": item.get('Energy_complete')})
     return output.getvalue().encode("utf-8-sig")
 
 

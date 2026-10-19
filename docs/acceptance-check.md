@@ -211,3 +211,21 @@ Its target uses the existing student formula, including adjusted weight at BMI
 AppTest covers profile change, undo, save, date switching and history reopen; the
 Google-access prohibition test still passes. All changes remain on the test branch.
 Cloud persistence and entitlement scheduling are not claimed for the public demo.
+
+## Supplementary remarks and attachments — requirements audit
+
+140 checks passed before the final strict malformed-row guard; focused checks
+verify the guard too. Student remarks can be saved by account/date/meal without
+a calorie value, with optional bounded JPG/PNG/WebP/PDF attachments. Metadata
+and file chunks use dedicated sheets; notes are committed only after file ranges
+are acknowledged. Account checks, narrow reads and hashes validate downloads.
+Teacher views show the selected student's notes/files. Unknown food energy pauses
+Remaining and marks history/export incomplete; it never adds a fabricated zero.
+After food is saved, an explicit counted marker preserves the note and attachment.
+No existing main-log, profile, undo or review capability was removed.
+
+The public demo uses the same validation in session memory and never invokes
+Google access. Full function/status/launch checklist is feature-audit.md. This
+change has not been called production-ready: live file roundtrip, real teacher
+publication, current phone rendering and deployment settings still require one
+combined acceptance pass. No production merge or website modification occurred.

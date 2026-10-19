@@ -9,6 +9,16 @@ from test_tracker_storage import Sheet, FOOD
 
 
 class ExportTests(unittest.TestCase):
+    def test_csv_marks_uncounted_food_without_losing_known_energy(self):
+        from student_notes import annotate_energy_status
+        sheet = Sheet()
+        save_day(sheet, 'alice', '2026-10-18', [FOOD], [], 75, 'Rice', 'None')
+        records = annotate_energy_status(load_history(sheet, 'alice'), [{'Date': '2026-10-18', 'needs_calories': True}])
+        row = list(csv.DictReader(io.StringIO(export_history_csv(records).decode('utf-8-sig'))))[0]
+        self.assertEqual(row['Net_Calories_kcal'], '75.0')
+        self.assertEqual(row['Pending_calorie_notes'], '1')
+        self.assertEqual(row['Energy_complete'], 'False')
+
     def test_csv_keeps_partial_protein_separate_and_excludes_other_accounts(self):
         sheet = Sheet()
         save_day(sheet, 'alice', '2026-10-18', [FOOD, dict(FOOD, Protein=None)], [], 150, '白饭', 'None')
