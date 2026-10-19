@@ -144,3 +144,13 @@ def filter_foods(database, category=ALL_FOODS, query="", recent=()):
     if category == ALL_FOODS:
         return visible
     return [key for key in visible if FOOD_META.get(key, ("", ""))[1] == category]
+
+
+def food_picker_label(food_id):
+    """Short eating-oriented label; provenance remains available in Food details."""
+    reference = REFERENCE_RECORDS.get(food_id)
+    if reference:
+        portion = reference.get('portion_zh', reference['portion'])
+        name = food_id.split(' (' + reference['portion'] + ',', 1)[0]
+        return f"{reference['zh']} · {name}（{portion}）"
+    return food_label(food_id)

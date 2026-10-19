@@ -4,7 +4,7 @@ The test branch is `tracker-v2/mobile-entry-session-fixes`. Production main is u
 
 ## Automated checks
 
-108 tests pass, including 27 real Streamlit AppTest scenarios.
+112 tests pass, including 29 real Streamlit AppTest scenarios.
 
 Real Streamlit AppTest executes the complete application against in-memory Google Sheets doubles. It covers search changes, package-label input, missing values, serving and meal edits, individual deletion, shrinking entry lists, exercise duration edits, negative net energy, saving and fresh-session restore, separate date drafts, opening a day from history, logout and switching accounts, legacy replacement protection, failed-save retry, and profile failure/recovery and persistence. Pure unit tests separately verify per-record nutrient scaling, provenance, schema handling, empty gspread sheets, partial protein totals, latest-row history, and account/date separation.
 
@@ -133,3 +133,29 @@ truncated address. GitHub's available fetch interface did not allow deployment
 listing. A prior suggested subdomain is not evidence of the actual deployed URL.
 To complete the single live acceptance pass, obtain the full URL from the
 currently used test app's address bar; no service-account private key is needed.
+
+## Calorie-first interface revision (19 October)
+
+This revision follows May's feedback that the earlier interface exposed too much
+source and nutrient metadata and lost the original May Bloom visual hierarchy.
+Restore the large rose title, coloured Food Intake / Exercise Burn / Net Calories
+cards, remaining balance badge, Daily Energy Progress and large remaining-calorie
+message. A teal-tinted profile sidebar distinguishes settings from daily logging.
+Saved-profile boilerplate is removed; first-use/dirty/error guidance stays conditional.
+
+The primary food path is Meal → Food Item → Servings → Add Meal in one desktop
+row, stacking on mobile. The Food Item select box supports typing directly. Optional
+alias search, categories, personal labels, custom labels, nutrients and provenance
+remain under one closed More options expander. Student tables default to calories;
+unknown nutrients and provenance remain intact in stored snapshots and coach tools.
+History returns to Your Wellness History and the energy chart uses the brand rose.
+
+New AppTests cover logging from the simple row without search/label input, preserved
+nutrient data and a visible remaining-calorie panel. Unit checks cover remaining /
+over-target wording and concise food labels. All existing save, restore, conflict,
+undo, account-isolation and label workflows continue to pass.
+
+The HTML files ui-review-desktop.html and ui-review-mobile.html are clearly marked
+layout previews with sample values, not live account screenshots. Their main cards
+reuse tracker_ui.py. Visual inspection of the static reviews is complete; the revised
+protected live UI still needs a browser session for a final render check.

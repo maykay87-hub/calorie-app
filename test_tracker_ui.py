@@ -1,0 +1,21 @@
+import unittest
+from tracker_ui import calorie_summary, remaining_panel
+from food_catalogue import food_picker_label
+from nutrition_registry import REFERENCE_RECORDS
+
+
+class CaloriePresentationTests(unittest.TestCase):
+    def test_remaining_and_over_target_are_distinct_without_changing_values(self):
+        self.assertIn('613 left', calorie_summary(880, 0, 880, 613))
+        self.assertIn('613', remaining_panel(613))
+        self.assertIn('kcal remaining', remaining_panel(613))
+        self.assertIn('20 over', calorie_summary(1513, 0, 1513, -20))
+        self.assertIn('above target', remaining_panel(-20))
+        self.assertNotIn('left', calorie_summary(0, 0, 0, None))
+
+    def test_picker_keeps_dish_and_portion_without_source_metadata(self):
+        key = next(k for k,v in REFERENCE_RECORDS.items() if v.get('source_id')=='hpb_sgfoodid')
+        label = food_picker_label(key)
+        self.assertIn(REFERENCE_RECORDS[key]['zh'], label)
+        self.assertNotIn('SG参考', label)
+        self.assertNotIn('HPB', label)

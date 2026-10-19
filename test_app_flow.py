@@ -105,7 +105,7 @@ class AppFlowTests(unittest.TestCase):
         other = first - timedelta(days=1)
         self.at.date_input(key='entry_date').set_value(other).run()
         self.assertEqual(self.at.session_state['food_log'], [])
-        self.button('添加饮食').click().run()
+        self.button('Add Meal').click().run()
         self.at.button(key='save_bottom_food').click().run()
         self.assertFalse(self.at.exception)
         self.at.date_input(key='entry_date').set_value(first).run()
@@ -173,7 +173,7 @@ class AppFlowTests(unittest.TestCase):
 
     def test_edit_meal_and_remove_last_selected_row_without_widget_error(self):
         self.add_package()
-        self.button('添加饮食').click().run()
+        self.button('Add Meal').click().run()
         edit_key = f"food_edit_index_{self.at.date_input(key='entry_date').value}"
         self.at.selectbox(key=edit_key).set_value(1).run()
         self.button('撤销上一笔').click().run()
@@ -237,7 +237,7 @@ class AppFlowTests(unittest.TestCase):
         self.at.text_input(key='food_search').set_value('dry wantan').run()
         self.assertIn('HPB SG reference', self.at.selectbox(key='selected_food_id').value)
         self.number('份数 · Servings').set_value(.5)
-        self.button('添加饮食').click().run()
+        self.button('Add Meal').click().run()
         self.assertFalse(self.at.exception)
         entry = self.at.session_state['food_log'][0]
         self.assertEqual(entry['Calories'], 312.5)
@@ -266,9 +266,9 @@ class AppFlowTests(unittest.TestCase):
         self.add_package()
         self.at.text_input(key='food_search').set_value('Wholemeal bread').run()
         selected = next(key for key in self.at.session_state['personal_labels'] if key['Source']['product_name'] == 'Wholemeal bread')
-        self.at.selectbox(key='selected_food_id').set_value(selected['Food']).run()
-        self.number('食用量 · Amount eaten').set_value(20.0)
-        self.button('添加饮食').click().run()
+        self.at.selectbox(key='selected_food_id').set_value(selected['Food'])
+        self.number('份数 · Servings').set_value(0.2)
+        self.button('Add Meal').click().run()
         self.assertFalse(self.at.exception)
         added = self.at.session_state['food_log'][-1]
         self.assertEqual(added['Calories'], 48)
@@ -278,7 +278,7 @@ class AppFlowTests(unittest.TestCase):
         self.at.text_input(key='food_search').set_value('low fat milk').run()
         self.assertFalse(self.at.exception)
         self.assertIn('250 ml', self.at.selectbox(key='selected_food_id').value)
-        self.button('添加饮食').click().run()
+        self.button('Add Meal').click().run()
         self.assertFalse(self.at.exception)
         entry = self.at.session_state['food_log'][0]
         self.assertEqual(entry['Calories'], 118)
@@ -290,7 +290,7 @@ class AppFlowTests(unittest.TestCase):
         self.at.text_input(key='food_search').set_value('kopi c kosong').run()
         self.assertFalse(self.at.exception)
         self.assertIn('Kopi C Kosong', self.at.selectbox(key='selected_food_id').value)
-        self.button('添加饮食').click().run()
+        self.button('Add Meal').click().run()
         self.assertFalse(self.at.exception)
         entry = self.at.session_state['food_log'][0]
         self.assertEqual(entry['Calories'], 93)
@@ -349,7 +349,7 @@ class AppFlowTests(unittest.TestCase):
     def test_quarter_serving_and_short_exercise_save_restore(self):
         self.at.text_input(key='food_search').set_value('dry wantan').run()
         self.number('份数 · Servings').set_value(.25)
-        self.button('添加饮食').click().run()
+        self.button('Add Meal').click().run()
         food = self.at.session_state['food_log'][0].copy()
         self.assertEqual(food['Qty'], .25)
         self.assertAlmostEqual(food['Calories'], 156.25)
@@ -365,7 +365,7 @@ class AppFlowTests(unittest.TestCase):
 
     def test_pending_day_navigation_preserves_draft_and_clears_after_save(self):
         day = self.at.date_input(key='entry_date').value
-        self.button('添加饮食').click().run()
+        self.button('Add Meal').click().run()
         food = self.at.session_state['food_log'][0].copy()
         self.assertTrue(self.at.button(key=f'pending_day_{day}').disabled)
         self.at.date_input(key='entry_date').set_value(day - timedelta(days=1)).run()
@@ -396,7 +396,7 @@ class AppFlowTests(unittest.TestCase):
         self.profiles.rows = [PROFILE_HEADERS]
         self.at = self.new_app()
         self.assertFalse(any(x.label == '🔥 Daily Target' for x in self.at.metric))
-        self.button('添加饮食').click().run()
+        self.button('Add Meal').click().run()
         self.assertEqual(len(self.at.session_state['food_log']), 1)
         self.number('身高').set_value(164.0).run()
         self.number('体重').set_value(52.0).run()
@@ -431,3 +431,23 @@ class AppFlowTests(unittest.TestCase):
         self.assertNotIn('login_user', self.at.session_state)
         self.button('Log Out').click().run()
         self.assertEqual(self.at.text_input(key='login_pass').value, '')
+
+    def test_simple_food_form_logs_without_search_or_custom_food_input(self):
+        self.assertFalse(self.at.exception)
+        self.assertFalse(any('Saved profile loads' in x.value for x in self.at.caption))
+        self.assertFalse(any('营养合计与完整度' in x.label for x in self.at.expander))
+        self.number('份数 · Servings').set_value(0.5)
+        self.button('Add Meal').click().run()
+        self.assertEqual(len(self.at.session_state['food_log']), 1)
+        self.assertEqual(self.at.session_state['food_log'][0]['Qty'], 0.5)
+        self.assertEqual(list(self.at.dataframe[0].value.columns), ['餐次 Meal', '食物 Food', '食用量 Amount', 'kcal'])
+
+    def test_remaining_is_prominent_and_nutrient_values_survive_calorie_only_view(self):
+        self.add_package()
+        html = '\n'.join(x.value for x in self.at.markdown)
+        self.assertIn('kcal remaining · 今日剩余', html)
+        self.assertIn('Food Intake', html)
+        self.assertIn('Exercise Burn', html)
+        self.assertEqual(self.at.session_state['food_log'][0]['Protein'], 3)
+        self.assertIsNone(self.at.session_state['food_log'][0]['Carbs'])
+        self.assertFalse(any('Recorded protein' in x.value for x in self.at.info))

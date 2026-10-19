@@ -15,7 +15,7 @@ from tracker_history import load_history, load_coach_history
 from tracker_export import export_history_csv, export_draft
 from profile_storage import ACTIVITIES, load_profile, save_profile
 from nutrition_registry import SOURCE, SG_SOURCE, REFERENCE_RECORDS, reference_database, reference_portion, make_food_entry, format_energy
-from food_catalogue import ALL_FOODS, RECENT_FOODS, CATEGORIES, MEAL_LABELS, food_label, filter_foods, remember_food
+from food_catalogue import ALL_FOODS, RECENT_FOODS, CATEGORIES, MEAL_LABELS, food_label, food_picker_label, filter_foods, remember_food
 
 # --- 1. APP CONFIGURATION ---
 st.set_page_config(page_title="May Bloom Advanced", page_icon="🌸", layout="wide")
@@ -159,12 +159,9 @@ def render_profile_panel():
             report_profile_error(exc, profile_stage)
     baseline = st.session_state.get("profile_baseline")
     if baseline is None:
-        st.caption("首次使用：请确认身高、体重和活动水平，再保存。 First visit: check the default values and save.")
+        st.caption("确认资料后按保存，即可显示每日热量目标。 Save your profile to set your daily target.")
     elif current_profile != baseline:
         st.caption("个人资料修改尚未保存；热量目标仍按已保存资料计算。 Save profile changes to update your energy target.")
-    else:
-        st.caption("个人资料已保存，重新登入会自动载入。 Saved profile loads after sign-in.")
-    st.caption("饮食和运动记录请使用主页面的「保存当天记录」。 Save daily food and exercise separately on the main page.")
     st.divider()
     return baseline
 
@@ -274,51 +271,13 @@ if st.session_state["username"] == "admin":
 # PART 5: REGULAR CLIENT APP
 # ==========================================
 
-# --- CUSTOM CSS ---
-st.markdown("""
-<style>
-    .block-container { max-width: 960px; padding-top: 5rem; padding-bottom: 3rem; }
-    .mb-brand { display:flex; align-items:center; gap:.55rem; margin:0 0 .15rem; }
-    .mb-brand-name { font-size:1.65rem; font-weight:700; color:var(--text-color, #49333c); line-height:1.3; }
-    .mb-brand-mark { color:#a54460; font-size:1.5rem; }
-    .mb-subtitle { color:var(--text-color, #68585f); font-size:.9rem; margin:0 0 .75rem; }
-    .mb-summary { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:.55rem; margin:.2rem 0; }
-    .mb-stat { margin:0; padding:.75rem .6rem; border:1px solid #edd7de; border-radius:14px; background:#fcf5f7; min-width:0; }
-    .mb-stat dt { font-size:.8rem; color:#68515b; margin:0 0 .25rem; }
-    .mb-stat dd { font-size:clamp(1.05rem,4.8vw,1.8rem); font-weight:700; color:#49333c; margin:0; overflow-wrap:anywhere; }
-    .mb-stat small { display:block; font-size:.72rem; font-weight:400; color:#68515b; margin-top:.1rem; }
-    .mb-stat-net { background:#f5e6ec; border-color:#dba6b6; }
-    [data-testid="stButton"] button,
-    [data-testid="stFormSubmitButton"] button { min-height:44px; border-radius:10px; }
-    [data-testid="stButton"] button[kind="primary"],
-    button[data-testid="baseButton-primary"],
-    [data-testid="stFormSubmitButton"] button {
-        background:#9b3e59 !important; border-color:#9b3e59 !important; color:#fff !important;
-    }
-    [data-testid="stButton"] button[kind="primary"]:hover,
-    button[data-testid="baseButton-primary"]:hover,
-    [data-testid="stFormSubmitButton"] button:hover {
-        background:#803249 !important; border-color:#803249 !important; color:#fff !important;
-    }
-    [data-testid="stButton"] button[kind="primary"]:disabled,
-    button[data-testid="baseButton-primary"]:disabled,
-    [data-testid="stFormSubmitButton"] button:disabled {
-        background:#eee5e8 !important; border-color:#ddd0d5 !important; color:#71636a !important;
-    }
-    @media (max-width:640px) {
-        .block-container { padding-left:1rem; padding-right:1rem; padding-top:5rem; }
-        .mb-brand-name { font-size:1.4rem; }
-        [data-testid="stForm"] { padding:.8rem; }
-        [data-testid="stTabs"] [role="tab"] { min-height:44px; padding-left:.4rem; padding-right:.4rem; }
-    }
-
-</style>
-""", unsafe_allow_html=True)
+# --- MAY BLOOM PRESENTATION ---
+from tracker_ui import MAY_BLOOM_CSS, calorie_summary, remaining_panel
+st.markdown(MAY_BLOOM_CSS, unsafe_allow_html=True)
 
 # --- DAILY DRAFT ---
-st.subheader("✿ May Bloom")
-st.caption("Lifestyle Tracker · 生活记录")
-entry_date = st.date_input("日期 · Date of entry", datetime.now(ZoneInfo("Asia/Kuala_Lumpur")).date(), key="entry_date")
+st.markdown('<h1 class="mb-title"><span>🌸 May Bloom</span> Lifestyle Tracker</h1>', unsafe_allow_html=True)
+entry_date = st.date_input("📅 Date of Entry · 记录日期", datetime.now(ZoneInfo("Asia/Kuala_Lumpur")).date(), key="entry_date")
 draft = select_draft(st.session_state, st.session_state["username"], entry_date)
 if not draft.get("loaded"):
     try:
@@ -340,8 +299,7 @@ if not draft.get("loaded"):
             st.rerun()
         st.stop()
 with st.expander("使用提示 · How to use"):
-    st.write("已保存的记录会在登入后载入。修改后请保存；未保存的修改可能在离开后丢失。 Saved records load after sign-in. Save after editing; unsaved changes may be lost when you leave.")
-    st.caption("本次会话可分别撤销最近20次饮食和运动修改，包括删除和清空。 Undo supports the last 20 food and exercise changes in this session.")
+    st.write("选择日期 → 填写餐次、食物与份量 → Add Meal。记录完后按「保存当天记录」。 Choose a date, select your meal, food and serving, then Add Meal. Save when finished.")
 if draft.get("legacy"):
     st.caption("此日期是旧版摘要。可查看原记录；如需重新填写，请先添加完整记录再确认替换。 Older summary: view below, or enter a complete replacement.")
     with st.expander("查看旧记录 · Previous summary"):
@@ -431,7 +389,7 @@ exercise_database = {
 
 # --- SIDEBAR (UPDATED) ---
 with st.sidebar:
-    st.image("https://cdn-icons-png.flaticon.com/512/3050/3050484.png", width=80)
+    st.markdown('<div class="mb-profile-kicker">MY PROFILE · 个人资料</div>', unsafe_allow_html=True)
     st.header(f"👤 {st.session_state['username'].title()}")
     
     # --- 💌 COACH FEEDBACK ---
@@ -501,42 +459,13 @@ else:
 net_calories = total_intake - total_burned
 remaining = daily_needs - net_calories if daily_needs is not None else None
 
-st.markdown(
-    f'<div class="mb-summary" role="group" aria-label="每日热量 Daily calories">'
-    f'<dl class="mb-stat"><dt>饮食 Food</dt><dd>{format_energy(total_intake)}<small>kcal</small></dd></dl>'
-    f'<dl class="mb-stat"><dt>运动 Exercise</dt><dd>{format_energy(total_burned)}<small>kcal</small></dd></dl>'
-    f'<dl class="mb-stat mb-stat-net"><dt>净值 Net</dt><dd>{format_energy(net_calories)}<small>kcal</small></dd></dl>'
-    f'</div>',
-    unsafe_allow_html=True,
-)
+st.markdown(calorie_summary(total_intake, total_burned, net_calories, remaining), unsafe_allow_html=True)
 if daily_needs is not None:
-    progress = min(max(net_calories / daily_needs, 0.0), 1.0)
-    st.progress(progress)
-    if remaining < 0:
-        st.caption(f"高于当前目标 Above target: {format_energy(abs(remaining))} kcal")
-    else:
-        st.caption(f"距当前目标 Remaining: {format_energy(remaining)} kcal")
-
+    st.markdown('<div class="mb-progress-title">Daily Energy Progress · 今日热量进度</div>', unsafe_allow_html=True)
+    st.progress(min(max(net_calories / daily_needs, 0.0), 1.0))
+    st.markdown(remaining_panel(remaining), unsafe_allow_html=True)
 else:
-    if st.session_state.get("profile_loaded_user") == st.session_state["username"]:
-        st.caption("请在左侧个人资料确认身高、体重与活动水平并保存，再显示热量目标。饮食与运动可先记录。 Confirm and save your profile in the sidebar to show an energy target; you can log food and exercise now.")
-    else:
-        st.caption("个人资料暂不可用，当前不显示热量目标。 Energy target unavailable until your profile loads.")
-
-if st.session_state.food_log:
-    protein = nutrient_coverage(st.session_state.food_log, "Protein")
-    if protein["missing_entries"] == protein["entry_count"]:
-        st.info("蛋白质：这些餐食尚未提供资料 · Protein data unavailable for these foods")
-    elif protein["missing_entries"]:
-        st.info(f"蛋白质已知部分 · Known protein: {format_energy(protein['known_total'])} g；另有 {protein['missing_entries']} 项未提供 · foods missing data")
-    else:
-        st.info(f"已记录蛋白质 · Recorded protein: {format_energy(protein['known_total'])} g（参考估算 · estimate）")
-    with st.expander("营养合计与完整度 · Nutrient totals"):
-        st.caption("以下为已知部分的合计；缺资料时不能视为全天总量。 Totals cover known values only.")
-        for nutrient, label in [("Protein", "蛋白质 Protein"), ("Carbs", "碳水 Carbs"), ("Fat", "脂肪 Fat")]:
-            coverage = nutrient_coverage(st.session_state.food_log, nutrient)
-            amount = format_energy(coverage["known_total"]) + " g" if coverage["missing_entries"] < coverage["entry_count"] else "—"
-            st.write(f"{label}: {amount} · {coverage['entry_count'] - coverage['missing_entries']}/{coverage['entry_count']} 项有资料")
+    st.info("填写并保存左侧个人资料，即可显示每日热量目标。 Save your profile to see your daily target.")
 
 if daily_signature(st.session_state.food_log, st.session_state.exercise_log) != draft.get("saved_signature"):
     st.warning("有未保存的修改 · Unsaved changes")
@@ -585,9 +514,10 @@ if st.button("保存当天记录 · Save", type="primary", use_container_width=T
         st.rerun()
 
 # --- TABS ---
-tab1, tab2, tab3 = st.tabs(["饮食 Food", "运动 Exercise", "历史 History"])
+tab1, tab2, tab3 = st.tabs(["🍽️ Food Log · 饮食", "🔥 Exercise Log · 运动", "📜 Wellness History · 历史"])
 
 with tab1:
+    st.markdown('<h2 class="mb-section-title">🍽️ Food Log <small>饮食记录</small></h2>', unsafe_allow_html=True)
     if st.session_state.get("label_library_user") != st.session_state["username"]:
         try:
             personal_labels = load_personal_labels(get_sheet_connection("main"), st.session_state["username"])
@@ -604,157 +534,44 @@ with tab1:
     food_database.update({name: {"Cals": item["Calories"], "Prot": item["Protein"],
                                 "Carbs": item["Carbs"], "Fat": item["Fat"]}
                           for name, item in personal_by_food.items()})
-    if personal_labels:
-        with st.expander("我的包装食品 · My label foods"):
-            st.caption("从你已保存的饮食记录恢复；当前新填标签在保存当天记录后可于下次登入使用。 Reuse your own labels. Save the day to keep new labels for your next sign-in.")
-            templates = {template_key(item): item for item in personal_labels}
-            if st.session_state.get("personal_label_choice") not in templates:
-                st.session_state["personal_label_choice"] = next(iter(templates))
-            personal_choice = st.selectbox("选择我的食品 · My food", list(templates),
-                format_func=lambda key: templates[key]["Food"], key="personal_label_choice")
-            template = templates[personal_choice]
-            label_source = template["Source"]
-            unit_label = "份 · Serving" if label_source["label_unit"] == "serving" else label_source["label_unit"]
-            with st.form(f"reuse_label_{entry_date}_{personal_choice}"):
-                reuse_meal = st.selectbox("餐次 · Meal", list(MEAL_LABELS), format_func=MEAL_LABELS.get)
-                reuse_amount = st.number_input(f"这次食用量 · Amount eaten ({unit_label})", min_value=0.1,
-                    value=float(label_source["label_amount"]), step=1.0)
-                reuse_add = st.form_submit_button("添加我的食品 · Add my food", use_container_width=True)
-            if reuse_add:
-                change_entries(draft, "food", st.session_state.food_log + [reuse_label(template, reuse_meal, reuse_amount)])
-                st.rerun()
-    query = st.text_input(
-        "吃了什么？ · Search food", placeholder="直接输入：nasi lemak、鸡饭、炒面",
-        key="food_search",
-    )
-    with st.expander("分类与最近使用（可选） · Browse"):
-        category = st.selectbox(
-            "浏览范围 · Browse", [ALL_FOODS, RECENT_FOODS] + CATEGORIES,
-            key="food_browse_category",
-        )
-    if query.strip():
-        st.caption("正在搜索全部食物 · Searching all foods")
-    elif category != ALL_FOODS:
-        st.caption(f"当前浏览 · Browsing: {category}")
-    choices = filter_foods(
-        food_database, category, query, st.session_state.get("recent_food_names", [])
-    )
-    if category == RECENT_FOODS and not query.strip():
-        st.caption("本次登入选择或载入过的食物，最多8项。 Up to 8 foods used or loaded during this sign-in.")
+    category = st.session_state.get("food_browse_category", ALL_FOODS)
+    query = st.session_state.get("food_search", "")
+    choices = filter_foods(food_database, category, query, st.session_state.get("recent_food_names", []))
     add_meal = False
+    reference = personal_food = None
     if choices:
         if st.session_state.get("selected_food_id") not in choices:
             st.session_state["selected_food_id"] = choices[0]
-        food = st.selectbox(
-            "食物 · Food", choices, format_func=food_label, key="selected_food_id"
-        )
+        with st.form("add_food_form", clear_on_submit=False):
+            meal_col, food_col, amount_col, add_col = st.columns([1.2, 3.2, 1, 1.25], vertical_alignment="bottom")
+            with meal_col:
+                meal = st.selectbox("餐次 · Meal", list(MEAL_LABELS), format_func=MEAL_LABELS.get)
+            with food_col:
+                food = st.selectbox("食物 · Food Item", choices, format_func=food_picker_label,
+                                   key="selected_food_id", help="点击后可输入食物名称 · Type a food name to search")
+            with amount_col:
+                qty = st.number_input("份数 · Servings", min_value=0.01, value=1.0, step=0.25, format="%.2f")
+            with add_col:
+                add_meal = st.form_submit_button("Add Meal ＋", type="primary", use_container_width=True)
         reference = REFERENCE_RECORDS.get(food)
         personal_food = personal_by_food.get(food)
-        if personal_food:
-            label_source = personal_food["Source"]
-            st.caption(f"我的包装标签 · My package label: {label_source['label_amount']:g} {label_source['label_unit']} · {format_energy(personal_food['Calories'])} kcal")
-        if reference:
-            amount, unit = reference_portion(reference)
-            st.caption(f"参考1份 · Reference serving: {amount:g} {unit} · {reference['energy_kcal']:g} kcal")
-            if reference.get("source_id") == "hpb_sgfoodid":
-                st.caption("新加坡 HPB 食物参考；品种、品牌和做法可能不同。 Singapore food reference; varieties, brands and recipes vary.")
-        selected_protein = food_database[food]["Prot"]
-        if selected_protein is None:
-            st.caption("每份蛋白质：暂缺资料 · Protein per serving: unavailable")
-        else:
-            st.caption(f"每份蛋白质 · Protein per serving: {format_energy(selected_protein)} g（参考估算）")
-        with st.expander("份量与资料来源 · Portion & source"):
-            if personal_food:
-                st.caption("你填写的包装标签资料，尚未独立核实。 Your own package-label values; not independently verified.")
-            elif reference and reference.get("source_id") == "hpb_sgfoodid":
-                st.markdown(f"[{SG_SOURCE['title']}]({reference['source_url']})")
-                st.write(reference["original_name"])
-                st.write(reference["description"])
-                method_label = {"Lab Analysis": "实测资料 · Lab Analysis", "Derived": "推算资料 · Derived",
-                                "Borrowed": "引用资料 · Borrowed", "NIP": "标签资料 · NIP"}.get(reference["method"], reference["method"])
-                st.caption(f"食物编号 · Food code: {reference['food_code']} · Data year: {reference['data_year']} · {method_label}")
-                st.caption("热量与营养值来自同一食物记录。 Energy and nutrients use the same source record.")
-                if reference.get("portion_basis") == "edible_100g":
-                    st.caption("此项采用来源公布的每100g可食部数值。 This entry uses the published 100g edible basis.")
-                if reference["edible_portion_percent"] < 100:
-                    st.caption("来源重量包括不可食部；营养值已按来源的可食部分计算。 Source weight includes inedible parts; published nutrients already account for the edible portion.")
-            elif reference:
-                source_url = SOURCE["url"] + f"#page={reference['pdf_page']}"
-                st.markdown(f"[KKM Bank Kalori · PDF 第{reference['pdf_page']}页]({source_url})")
-                st.write(reference["original_name"])
-                code = reference["reference_code"]
-                st.caption(f"原始参考 · Original reference: {code} — {SOURCE['reference_codes'][code]}")
-                st.caption("这是指定份量的参考热量，摊位配方和实际份量会影响结果。 Reference energy is portion-specific; recipes and actual portions vary.")
-                macro_source = reference.get("macronutrient_source")
-                if macro_source:
-                    st.markdown(f"[蛋白质、碳水与脂肪 · {macro_source['title']}]({macro_source['url']})")
-                    st.caption("同名做法的每100g营养值按参考份量重量换算；不同配方仍有差异。 Matched preparation scaled by weight; recipes vary.")
-                else:
-                    st.caption("来源未提供蛋白质、碳水和脂肪；表格以 — 显示。 Macronutrients are not supplied by this source.")
-            else:
-                st.caption("原有交换份估算，逐项来源和重量待复核。 Original exchange estimate; item-level source and weight remain under review.")
-        with st.form("add_food_form", clear_on_submit=False):
-            meal = st.selectbox(
-                "餐次 · Meal", list(MEAL_LABELS), format_func=MEAL_LABELS.get
-            )
-            if personal_food:
-                label_source = personal_food["Source"]
-                personal_amount = st.number_input(f"食用量 · Amount eaten ({label_source['label_unit']})",
-                    min_value=0.1, value=float(label_source["label_amount"]), step=1.0,
-                    key=f"personal_search_amount_{template_key(personal_food)}")
-            else:
-                qty = st.number_input("份数 · Servings", min_value=0.01, value=1.0, step=0.25, format="%.2f")
-                st.caption("1份 = 上方标示份量；半份填0.5，四分之一份填0.25。可直接输入。 One serving follows the portion above; enter the amount eaten.")
-            add_meal = st.form_submit_button("添加饮食 · Add meal", type="primary", use_container_width=True)
-    elif category == RECENT_FOODS and not query.strip() and not st.session_state.get("recent_food_names"):
-        st.info("还没有最近使用的食物，请先选其他分类添加。 No recent foods yet; choose another category to start.")
     else:
-        st.info("食物库暂时没有符合的餐食，可换中文、英文或马来文名称再找。 No matching food yet; try another name.")
-        
+        st.info("没有找到这项食物。请在下方「更多选项」清除筛选或换个名称。 No matching food; clear the filter in More options.")
+
     if add_meal:
-        st.session_state["recent_food_names"] = remember_food(
-            st.session_state.get("recent_food_names", []), food
-        )
-        if personal_by_food.get(food):
-            added_food = reuse_label(personal_by_food[food], meal, personal_amount)
+        st.session_state["recent_food_names"] = remember_food(st.session_state.get("recent_food_names", []), food)
+        if personal_food:
+            added_food = reuse_label(personal_food, meal, personal_food["Source"]["label_amount"] * qty)
         else:
             added_food = make_food_entry(food_database, food, meal, qty)
         change_entries(draft, "food", st.session_state.food_log + [added_food])
         st.rerun()
 
-    with st.expander("找不到包装食品？按标签添加 · Add from package label"):
-        st.caption("填写同一栏的营养值，例如全部按每100g或每份；实际食用量使用相同单位。 Enter all nutrients from the same label column, using the same unit for the amount eaten.")
-        label_unit = st.selectbox("标签单位 · Label unit", ["serving", "g", "ml"],
-            format_func=lambda value: {"serving": "份 · Serving", "g": "克 · g", "ml": "毫升 · ml"}[value], key="label_unit")
-        with st.form(f"package_label_{entry_date}_{label_unit}"):
-            label_name = st.text_input("产品名称与口味 · Product & flavour", max_chars=120)
-            label_meal = st.selectbox("餐次 · Meal", list(MEAL_LABELS), format_func=MEAL_LABELS.get, key="label_meal")
-            label_basis = st.number_input("标签所列份量 · Label amount", min_value=0.1,
-                value=1.0 if label_unit == "serving" else 100.0, step=1.0)
-            label_eaten = st.number_input("实际食用量（相同单位） · Amount eaten", min_value=0.1,
-                value=1.0 if label_unit == "serving" else 100.0, step=1.0)
-            label_kcal = st.number_input("标签热量 · kcal（必填 · required）", min_value=0.0, value=None, step=1.0)
-            st.caption("以下可留空；只有标签写明0才填写0。 Leave unknown values blank; enter zero only when stated on the label.")
-            label_protein = st.number_input("标签蛋白质 · Protein g", min_value=0.0, value=None, step=0.1)
-            label_carbs = st.number_input("标签碳水 · Carbohydrate g", min_value=0.0, value=None, step=0.1)
-            label_fat = st.number_input("标签脂肪 · Fat g", min_value=0.0, value=None, step=0.1)
-            label_add = st.form_submit_button("添加标签记录 · Add label entry", use_container_width=True)
-        if label_add:
-            try:
-                label_entry = make_label_entry(label_name, label_meal, label_unit, label_basis,
-                    label_eaten, label_kcal, label_protein, label_carbs, label_fat)
-            except ValueError as exc:
-                st.error(str(exc))
-            else:
-                change_entries(draft, "food", st.session_state.food_log + [label_entry])
-                st.session_state["personal_labels"] = remember_label(st.session_state.get("personal_labels", []), label_entry)
-                st.rerun()
-
     if st.session_state.food_log:
         display_foods = pd.DataFrame(st.session_state.food_log).reindex(
-            columns=["Meal", "Food", "Qty", "Calories", "Protein", "Carbs", "Fat"]
+            columns=["Meal", "Food", "Qty", "Calories"]
         )
-        display_foods["Food"] = display_foods["Food"].map(food_label)
+        display_foods["Food"] = display_foods["Food"].map(food_picker_label)
         display_foods["Qty"] = [entry_amount_label(entry) for entry in st.session_state.food_log]
         display_foods["Meal"] = display_foods["Meal"].map(lambda value: MEAL_LABELS.get(value, value))
         st.dataframe(display_foods.rename(columns={
@@ -762,7 +579,6 @@ with tab1:
             "Protein": "蛋白质 g", "Carbs": "碳水 g", "Fat": "脂肪 g",
         }), use_container_width=True, hide_index=True)
         st.caption(f"饮食合计 Food total: {format_energy(total_intake)} kcal")
-        st.caption("— 表示未提供该项营养数值，不代表零。 A dash means not available, not zero.")
         
         with st.expander("修改或删除一笔 · Edit food entry"):
             food_rows = st.session_state.food_log
@@ -816,11 +632,111 @@ with tab1:
         if save_daily_summary(entry_date, st.session_state.food_log, st.session_state.exercise_log, net_calories):
             st.rerun()
 
+    with st.expander("更多选项 · More options"):
+        st.markdown("**搜索与分类 · Search & browse**")
+        st.text_input("搜索食物 · Search food", placeholder="nasi lemak、鸡饭、炒面", key="food_search")
+        st.selectbox("浏览范围 · Browse", [ALL_FOODS, RECENT_FOODS] + CATEGORIES, key="food_browse_category")
+        if query.strip():
+            st.caption("正在搜索全部食物 · Searching all foods")
+        st.markdown("**我的食品 · My foods**")
+        if personal_labels:
+            st.caption("从你已保存的饮食记录恢复；当前新填标签在保存当天记录后可于下次登入使用。 Reuse your own labels. Save the day to keep new labels for your next sign-in.")
+            templates = {template_key(item): item for item in personal_labels}
+            if st.session_state.get("personal_label_choice") not in templates:
+                st.session_state["personal_label_choice"] = next(iter(templates))
+            personal_choice = st.selectbox("选择我的食品 · My food", list(templates),
+                format_func=lambda key: templates[key]["Food"], key="personal_label_choice")
+            template = templates[personal_choice]
+            label_source = template["Source"]
+            unit_label = "份 · Serving" if label_source["label_unit"] == "serving" else label_source["label_unit"]
+            with st.form(f"reuse_label_{entry_date}_{personal_choice}"):
+                reuse_meal = st.selectbox("餐次 · Meal", list(MEAL_LABELS), format_func=MEAL_LABELS.get)
+                reuse_amount = st.number_input(f"这次食用量 · Amount eaten ({unit_label})", min_value=0.1,
+                    value=float(label_source["label_amount"]), step=1.0)
+                reuse_add = st.form_submit_button("添加我的食品 · Add my food", use_container_width=True)
+            if reuse_add:
+                change_entries(draft, "food", st.session_state.food_log + [reuse_label(template, reuse_meal, reuse_amount)])
+                st.rerun()
+
+        st.markdown("**自订食品（可选） · Custom food**")
+        st.caption("填写同一栏的营养值，例如全部按每100g或每份；实际食用量使用相同单位。 Enter all nutrients from the same label column, using the same unit for the amount eaten.")
+        label_unit = st.selectbox("标签单位 · Label unit", ["serving", "g", "ml"],
+            format_func=lambda value: {"serving": "份 · Serving", "g": "克 · g", "ml": "毫升 · ml"}[value], key="label_unit")
+        with st.form(f"package_label_{entry_date}_{label_unit}"):
+            label_name = st.text_input("产品名称与口味 · Product & flavour", max_chars=120)
+            label_meal = st.selectbox("餐次 · Meal", list(MEAL_LABELS), format_func=MEAL_LABELS.get, key="label_meal")
+            label_basis = st.number_input("标签所列份量 · Label amount", min_value=0.1,
+                value=1.0 if label_unit == "serving" else 100.0, step=1.0)
+            label_eaten = st.number_input("实际食用量（相同单位） · Amount eaten", min_value=0.1,
+                value=1.0 if label_unit == "serving" else 100.0, step=1.0)
+            label_kcal = st.number_input("标签热量 · kcal（必填 · required）", min_value=0.0, value=None, step=1.0)
+            st.caption("以下可留空；只有标签写明0才填写0。 Leave unknown values blank; enter zero only when stated on the label.")
+            label_protein = st.number_input("标签蛋白质 · Protein g", min_value=0.0, value=None, step=0.1)
+            label_carbs = st.number_input("标签碳水 · Carbohydrate g", min_value=0.0, value=None, step=0.1)
+            label_fat = st.number_input("标签脂肪 · Fat g", min_value=0.0, value=None, step=0.1)
+            label_add = st.form_submit_button("添加标签记录 · Add label entry", use_container_width=True)
+        if label_add:
+            try:
+                label_entry = make_label_entry(label_name, label_meal, label_unit, label_basis,
+                    label_eaten, label_kcal, label_protein, label_carbs, label_fat)
+            except ValueError as exc:
+                st.error(str(exc))
+            else:
+                change_entries(draft, "food", st.session_state.food_log + [label_entry])
+                st.session_state["personal_labels"] = remember_label(st.session_state.get("personal_labels", []), label_entry)
+                st.rerun()
+
+
+        st.markdown("**食物资料 · Food details**")
+        if choices:
+            if personal_food:
+                st.caption("你填写的包装标签资料，尚未独立核实。 Your own package-label values; not independently verified.")
+            elif reference and reference.get("source_id") == "hpb_sgfoodid":
+                st.markdown(f"[{SG_SOURCE['title']}]({reference['source_url']})")
+                st.write(reference["original_name"])
+                st.write(reference["description"])
+                method_label = {"Lab Analysis": "实测资料 · Lab Analysis", "Derived": "推算资料 · Derived",
+                                "Borrowed": "引用资料 · Borrowed", "NIP": "标签资料 · NIP"}.get(reference["method"], reference["method"])
+                st.caption(f"食物编号 · Food code: {reference['food_code']} · Data year: {reference['data_year']} · {method_label}")
+                st.caption("热量与营养值来自同一食物记录。 Energy and nutrients use the same source record.")
+                if reference.get("portion_basis") == "edible_100g":
+                    st.caption("此项采用来源公布的每100g可食部数值。 This entry uses the published 100g edible basis.")
+                if reference["edible_portion_percent"] < 100:
+                    st.caption("来源重量包括不可食部；营养值已按来源的可食部分计算。 Source weight includes inedible parts; published nutrients already account for the edible portion.")
+            elif reference:
+                source_url = SOURCE["url"] + f"#page={reference['pdf_page']}"
+                st.markdown(f"[KKM Bank Kalori · PDF 第{reference['pdf_page']}页]({source_url})")
+                st.write(reference["original_name"])
+                code = reference["reference_code"]
+                st.caption(f"原始参考 · Original reference: {code} — {SOURCE['reference_codes'][code]}")
+                st.caption("这是指定份量的参考热量，摊位配方和实际份量会影响结果。 Reference energy is portion-specific; recipes and actual portions vary.")
+                macro_source = reference.get("macronutrient_source")
+                if macro_source:
+                    st.markdown(f"[蛋白质、碳水与脂肪 · {macro_source['title']}]({macro_source['url']})")
+                    st.caption("同名做法的每100g营养值按参考份量重量换算；不同配方仍有差异。 Matched preparation scaled by weight; recipes vary.")
+                else:
+                    st.caption("来源未提供蛋白质、碳水和脂肪；表格以 — 显示。 Macronutrients are not supplied by this source.")
+            else:
+                st.caption("原有交换份估算，逐项来源和重量待复核。 Original exchange estimate; item-level source and weight remain under review.")
+
+        if st.session_state.food_log:
+            st.markdown("**营养详情 · Nutrition details**")
+            for nutrient, label in [("Protein", "蛋白质 Protein"), ("Carbs", "碳水 Carbs"), ("Fat", "脂肪 Fat")]:
+                coverage = nutrient_coverage(st.session_state.food_log, nutrient)
+                amount = format_energy(coverage["known_total"]) + " g" if coverage["missing_entries"] < coverage["entry_count"] else "—"
+                suffix = "（部分资料 · partial）" if coverage["missing_entries"] else ""
+                st.write(f"{label}: {amount} {suffix}")
+
 with tab2:
+    st.markdown('<h2 class="mb-section-title">🔥 Exercise Log <small>运动记录</small></h2>', unsafe_allow_html=True)
     with st.form("add_exercise_form", clear_on_submit=False):
-        ex_name = st.selectbox("运动类型 · Activity", list(exercise_database.keys()))
-        ex_minutes = st.number_input("时长（分钟） · Duration", min_value=1, value=30, step=5)
-        add_activity = st.form_submit_button("添加运动 · Add activity", type="primary", use_container_width=True)
+        activity_col, time_col, action_col = st.columns([3.2, 1, 1.25], vertical_alignment="bottom")
+        with activity_col:
+            ex_name = st.selectbox("运动类型 · Activity", list(exercise_database.keys()))
+        with time_col:
+            ex_minutes = st.number_input("时长（分钟） · Duration", min_value=1, value=30, step=5)
+        with action_col:
+            add_activity = st.form_submit_button("添加运动 · Add activity", type="primary", use_container_width=True)
 
     if add_activity:
         change_entries(draft, "exercise", st.session_state.exercise_log + [{
@@ -871,8 +787,7 @@ with tab2:
             st.rerun()
 
 with tab3:
-    st.subheader("历史记录 · History")
-    st.caption("只显示已保存记录；当前未保存的修改不包括在内。 Saved records only; drafts are excluded.")
+    st.markdown('<h2 class="mb-section-title">📜 Your Wellness History <small>我的生活记录</small></h2>', unsafe_allow_html=True)
     refresh_history = st.button("更新历史 · Refresh history")
     try:
         cache = st.session_state.get("history_cache")
@@ -888,21 +803,12 @@ with tab3:
                 data=export_history_csv(records), file_name="may-bloom-history.csv", mime="text/csv", on_click="ignore")
             history = pd.DataFrame(records)
             display = history[["Date", "Net_Calories"]].copy()
-            protein_labels = []
-            for row in records:
-                if row["status"] != "detailed" or row["missing_protein_entries"] == row["food_entries"] and row["food_entries"]:
-                    protein_labels.append("— 未提供")
-                elif row["missing_protein_entries"]:
-                    protein_labels.append(f"{format_energy(row['known_protein'])} g（部分 · partial）")
-                else:
-                    protein_labels.append(f"{format_energy(row['known_protein'])} g")
-            display["蛋白质 Protein"] = protein_labels
             st.dataframe(display.rename(columns={"Date": "日期 Date", "Net_Calories": "净热量 Net kcal"}),
                          use_container_width=True, hide_index=True)
             chart = history.dropna(subset=["Net_Calories"]).sort_values("Date")
             if not chart.empty:
                 chart = chart.assign(Date=pd.to_datetime(chart["Date"]))
-                st.line_chart(chart, x="Date", y="Net_Calories")
+                st.line_chart(chart, x="Date", y="Net_Calories", color="#cf6d8b")
             with st.expander("查看某一天 · Daily details"):
                 history_day = st.selectbox("已保存日期 · Saved date", [row["Date"] for row in records], key="history_day")
                 row = next(row for row in records if row["Date"] == history_day)
