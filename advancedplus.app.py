@@ -601,7 +601,9 @@ if st.button("保存当天记录 · Save", type="primary", use_container_width=T
         st.rerun()
 
 # --- TABS ---
-tab1, tab2, tab3 = st.tabs(["🍽️ Food Log · 饮食", "🔥 Exercise Log · 运动", "📜 Wellness History · 历史"])
+tab1, tab2, tab3 = st.tabs(
+    ["🍽️ Food Log · 饮食", "🔥 Exercise Log · 运动", "📜 Wellness History · 历史"],
+    key="tracker_tabs", on_change="rerun")
 
 with tab1:
     st.markdown('<h2 class="mb-section-title">🍽️ Food Log <small>饮食记录</small></h2>', unsafe_allow_html=True)

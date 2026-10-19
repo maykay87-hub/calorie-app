@@ -4,6 +4,25 @@ from unittest.mock import patch
 
 
 class DemoTests(unittest.TestCase):
+    def test_exercise_page_stays_selected_after_add_undo_and_save(self):
+        from streamlit.testing.v1 import AppTest
+        app = AppTest.from_file(str(Path(__file__).with_name('advancedplus.app.py')), default_timeout=15)
+        app.query_params['demo'] = '1'
+        app.run()
+        exercise_tab = '🔥 Exercise Log · 运动'
+        app.session_state['demo_tracker_tabs'] = exercise_tab
+        app.run()
+        next(b for b in app.button if b.label.startswith('添加运动')).click().run()
+        self.assertEqual(app.session_state['demo_burned'], 100)
+        self.assertEqual(app.session_state['demo_tracker_tabs'], exercise_tab)
+        next(b for b in app.button if b.label.startswith('撤销上一笔运动')).click().run()
+        self.assertEqual(app.session_state['demo_burned'], 0)
+        self.assertEqual(app.session_state['demo_tracker_tabs'], exercise_tab)
+        next(b for b in app.button if b.label.startswith('添加运动')).click().run()
+        next(b for b in app.button if b.label.startswith('体验保存')).click().run()
+        self.assertEqual(app.session_state['demo_tracker_tabs'], exercise_tab)
+        self.assertFalse(app.exception)
+
     def test_demo_remarks_pause_remaining_and_can_be_counted_without_google(self):
         from streamlit.testing.v1 import AppTest
         with patch('gspread.authorize', side_effect=AssertionError('Demo must never connect to Google')):

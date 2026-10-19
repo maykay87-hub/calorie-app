@@ -73,7 +73,9 @@ def render_demo():
     database = reference_database()
     foods = filter_foods(database)
     saved = st.session_state.setdefault('demo_saved', {})
-    food_tab, exercise_tab, history_tab = st.tabs(['🍽️ Food Log · 饮食', '🔥 Exercise Log · 运动', '📜 Wellness History · 历史'])
+    food_tab, exercise_tab, history_tab = st.tabs(
+        ['🍽️ Food Log · 饮食', '🔥 Exercise Log · 运动', '📜 Wellness History · 历史'],
+        key='demo_tracker_tabs', on_change='rerun')
     with food_tab:
         with st.form('demo_food_form'):
             a, b, c, d = st.columns([1.2, 3.5, 1, 1.3], vertical_alignment='bottom')

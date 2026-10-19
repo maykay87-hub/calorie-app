@@ -439,13 +439,20 @@ class AppFlowTests(unittest.TestCase):
         self.assertEqual(restored.session_state['food_log'][0]['Calories'], 72)
 
     def test_clear_exercise_keeps_undo_available_when_list_is_empty(self):
+        exercise_tab = '🔥 Exercise Log · 运动'
+        self.at.session_state['tracker_tabs'] = exercise_tab
+        self.at.run()
         self.button('添加运动').click().run()
+        self.assertEqual(self.at.session_state['tracker_tabs'], exercise_tab)
         before = self.at.session_state['exercise_log'][0].copy()
         self.button('清空当天运动').click().run()
         self.assertEqual(self.at.session_state['exercise_log'], [])
         self.button('撤销上一笔运动').click().run()
         self.assertFalse(self.at.exception)
         self.assertEqual(self.at.session_state['exercise_log'], [before])
+        self.assertEqual(self.at.session_state['tracker_tabs'], exercise_tab)
+        self.at.button(key='save_bottom_exercise').click().run()
+        self.assertEqual(self.at.session_state['tracker_tabs'], exercise_tab)
 
     def test_second_page_conflict_preserves_local_draft_until_confirmed_reload(self):
         first = self.at

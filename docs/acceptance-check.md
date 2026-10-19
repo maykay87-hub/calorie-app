@@ -4,7 +4,7 @@ The test branch is `tracker-v2/mobile-entry-session-fixes`. Production main is u
 
 ## Automated checks
 
-112 tests pass, including 29 real Streamlit AppTest scenarios.
+See `feature-audit.md` for the latest dated test count and live acceptance results.
 
 Real Streamlit AppTest executes the complete application against in-memory Google Sheets doubles. It covers search changes, package-label input, missing values, serving and meal edits, individual deletion, shrinking entry lists, exercise duration edits, negative net energy, saving and fresh-session restore, separate date drafts, opening a day from history, logout and switching accounts, legacy replacement protection, failed-save retry, and profile failure/recovery and persistence. Pure unit tests separately verify per-record nutrient scaling, provenance, schema handling, empty gspread sheets, partial protein totals, latest-row history, and account/date separation.
 
@@ -14,7 +14,7 @@ Use a test student account and a new test date. Search a local meal; confirm the
 
 ## Boundaries
 
-AppTest verifies Streamlit widget behavior and server logic; it does not verify the live deployment, actual Google credentials/permissions, or visual phone rendering. Food references are estimates for stated portions, not vendor-specific analyses. Shared catalogue has 131 selectable entries:57 complete Singapore HPB food references,36 visible KKM references (six with matched MyFCD macros), and 38 legacy exchange estimates awaiting source review. SG origins, source methods and portion units are explicitly labelled. Unknown macros remain unknown. Saved snapshots retain their original values.
+AppTest verifies Streamlit widget behavior and server logic; it does not verify the live deployment, actual Google credentials/permissions, or visual phone rendering. Food references are estimates for stated portions, not vendor-specific analyses. See `food-data-audit.md` for source coverage and the current KKM, Singapore HPB and legacy estimates. SG origins, source methods and portion units are explicitly labelled. Unknown macros remain unknown. Saved snapshots retain their original values.
 
 Google Sheets has no transactional compare-and-swap: truly simultaneous sessions can still overwrite a row or duplicate an initial save. This release is a test version, not a claim that all clinical data and deployment conditions have been validated.
 
