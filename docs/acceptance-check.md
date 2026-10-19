@@ -200,3 +200,14 @@ Reviews sort by actual publication time where available. Student history selects
 unique row keys, so same-period notes do not collide. Tests cover same-period
 visibility, timestamps, late follow-ups, account isolation and schema preservation.
 No live review was posted merely to test this change.
+
+## Full public demo parity pass
+
+The public session-only demo now includes a teal profile panel (height, weight,
+Sedentary x25 / Active x30), a date selector with separate drafts, the shared
+undo logic, food/exercise inputs, session-only save and Wellness History reopen.
+Its target uses the existing student formula, including adjusted weight at BMI
+25 and above. Sample feedback carries clearly labelled sample dates. New demo
+AppTest covers profile change, undo, save, date switching and history reopen; the
+Google-access prohibition test still passes. All changes remain on the test branch.
+Cloud persistence and entitlement scheduling are not claimed for the public demo.
