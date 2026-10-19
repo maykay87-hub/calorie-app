@@ -244,7 +244,10 @@ if st.session_state["username"] == "admin":
             col1.metric("已记录天数 · Saved days", len(records))
             col2.metric("学生人数 · Students", len(users))
             col3.metric("最新日期 · Latest date", max(row["Date"] for row in records))
-            chosen_user = st.selectbox("查看学生 · Student", users, key="coach_student")
+            # A student may submit only remarks/files before logging any calories.
+            # Keep those accounts selectable alongside students with daily logs.
+            selectable_users = sorted(set(users) | (set(st.secrets["passwords"].keys()) - {"admin"}))
+            chosen_user = st.selectbox("查看学生 · Student", selectable_users, key="coach_student")
             student_records = [row for row in records if row["username"] == chosen_user]
             try:
                 coach_notes = load_notes(get_sheet_connection('student_notes'), chosen_user)

@@ -91,6 +91,19 @@ class AppFlowTests(unittest.TestCase):
         self.assertFalse(restored.exception)
         self.assertEqual(len(restored.get('download_button')), 1)
 
+    def test_coach_can_select_remarks_only_student_when_other_students_have_logs(self):
+        save_day(self.sheet, 'another', date.today(), [FOOD], [], 75, 'other rice', 'None')
+        next(x for x in self.at.text_area if x.label.startswith('备注')).set_value('Remarks without a calorie log')
+        next(b for b in self.at.button if b.label.startswith('保存补充记录')).click().run()
+        self.at.secrets['passwords'] = {'student': 'test-pass', 'another': 'other-pass', 'admin': 'coach-pass'}
+        self.at.session_state['username'] = 'admin'
+        self.at.run()
+        self.assertFalse(self.at.exception)
+        self.assertIn('student', self.at.selectbox(key='coach_student').options)
+        self.at.selectbox(key='coach_student').set_value('student').run()
+        self.assertFalse(self.at.exception)
+        self.assertTrue(any('Remarks without a calorie log' in x.value for x in self.at.text))
+
     def test_pending_food_can_be_marked_counted_only_after_saved_food(self):
         next(x for x in self.at.text_area if x.label.startswith('备注')).set_value('Missing food')
         next(b for b in self.at.button if b.label.startswith('保存补充记录')).click().run()
