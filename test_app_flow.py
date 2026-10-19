@@ -21,7 +21,7 @@ class AppFlowTests(unittest.TestCase):
     def setUp(self):
         self.sheet = RecordSheet([HEADERS])
         self.profiles = RecordSheet([PROFILE_HEADERS, ['student', '162', '52', 'Sedentary (x25)', '']])
-        feedback = RecordSheet([['username', 'month', 'note']])
+        feedback = self.feedback = RecordSheet([['username', 'month', 'note']])
         book = SimpleNamespace(get_worksheet=lambda i: self.sheet,
                                worksheet=lambda name: self.profiles if name == 'profiles' else feedback)
         client = SimpleNamespace(open_by_key=lambda key: book)
@@ -57,6 +57,39 @@ class AppFlowTests(unittest.TestCase):
         self.number('标签蛋白质').set_value(10.0)
         self.button('添加标签记录').click().run()
         self.assertFalse(self.at.exception)
+
+    def test_student_feedback_is_account_scoped_and_refreshes(self):
+        self.feedback.rows += [['another', '2026-10', 'Other private note'],
+                               ['student', '2026-10', 'Add vegetables next week.']]
+        self.at.button(key='refresh_feedback').click().run()
+        self.assertFalse(self.at.exception)
+        self.assertTrue(any('Add vegetables' in x.value for x in self.at.text))
+        self.assertFalse(any('Other private' in x.value for x in self.at.text))
+        self.assertEqual(self.at.session_state['food_log'], [])
+
+    def test_coach_publishes_review_and_student_can_read_it(self):
+        self.at.secrets['passwords'] = {'student': 'test-pass', 'admin': 'coach-pass'}
+        self.at.session_state['username'] = 'admin'
+        self.at.run()
+        self.assertFalse(self.at.exception)
+        self.at.text_area(key='review_body_student').set_value('Keep your regular breakfast; add vegetables at lunch.')
+        next(b for b in self.at.button if b.label.startswith('发布给这位')).click().run()
+        self.assertFalse(self.at.exception)
+        self.assertEqual(len(self.feedback.rows), 2)
+        self.assertEqual(self.feedback.rows[1][0], 'student')
+        self.assertTrue(self.feedback.rows[1][1].startswith('Week '))
+        next(b for b in self.at.button if b.label.startswith('发布给这位')).click().run()
+        self.assertEqual(len(self.feedback.rows), 2)
+        restored = self.new_app()
+        self.assertTrue(any('regular breakfast' in x.value for x in restored.text))
+
+    def test_feedback_failure_keeps_food_entry_available(self):
+        with patch.object(self.feedback, 'get_all_values', side_effect=ConnectionError('offline')):
+            self.at.run()
+        self.assertFalse(self.at.exception)
+        self.assertTrue(any('Could not load feedback' in w.value for w in self.at.warning))
+        self.button('Add Meal').click().run()
+        self.assertEqual(len(self.at.session_state['food_log']), 1)
 
     def test_label_edit_save_and_new_session_restore(self):
         self.add_package()

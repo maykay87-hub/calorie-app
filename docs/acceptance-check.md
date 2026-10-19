@@ -166,3 +166,24 @@ The live progressbar reported 7%, but the custom CSS coloured its entire track
 rose. Keep the track neutral and apply rose only to its inner fill. This changes
 presentation only; calories, targets, stored records and progress arithmetic stay
 unchanged. Production main remains unchanged.
+
+## Human reviews and isolated public demo
+
+120 checks pass, including 32 full student/coach AppTest scenarios and one
+public-demo AppTest. The coach can publish weekly/monthly text reviews from the
+admin screen, with account selection, preserved input on failure, RAW writes,
+append-only revisions, and serial identical-retry deduplication. Original
+username/month/note headers remain compatible; unexpected schema is preserved
+and rejected. Student reviews are account-scoped, sorted by recognized period,
+and accessible from the main page with past periods and a refresh action.
+There is no automated AI generation, unread receipt, entitlement or scheduling
+engine. Dates for weekly/monthly service are managed by May.
+
+The ?demo=1 route runs before credentials and worksheet access. It uses public
+food reference values and labelled sample feedback, keeps entries in its own
+session keys, and does not write real records. AppTest runs it without secrets,
+with gspread authorization set to fail if called, and exercises add, sample
+exercise, try-save and reset. Course wording, website connection instructions
+and a 90-second demo script are in course-offer-and-demo.md. Website integration,
+production merge, student free-text/attachments and AI photo detection are not
+part of this published test-stage change.

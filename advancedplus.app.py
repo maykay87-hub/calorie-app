@@ -12,6 +12,7 @@ from label_entry import make_label_entry, entry_amount_label
 from label_library import load_personal_labels, remember_label, template_key, reuse_label
 from tracker_storage import load_day, save_day, day_snapshot, SaveConflictError
 from tracker_history import load_history, load_coach_history
+from coach_feedback import load_feedback, publish_feedback, review_period
 from tracker_export import export_history_csv, export_draft
 from profile_storage import ACTIVITIES, load_profile, save_profile
 from nutrition_registry import SOURCE, SG_SOURCE, REFERENCE_RECORDS, reference_database, reference_portion, make_food_entry, format_energy
@@ -19,6 +20,12 @@ from food_catalogue import ALL_FOODS, RECENT_FOODS, CATEGORIES, MEAL_LABELS, foo
 
 # --- 1. APP CONFIGURATION ---
 st.set_page_config(page_title="May Bloom Advanced", page_icon="🌸", layout="wide")
+
+# Public preview is deliberately before secrets, sign-in and all worksheet access.
+if st.query_params.get("demo") == "1":
+    from tracker_demo import render_demo
+    render_demo()
+    st.stop()
 
 # --- 2. GOOGLE SHEETS CONNECTION ---
 # This test branch requires an explicit spreadsheet ID; never fall back to the live database.
@@ -56,7 +63,10 @@ def get_sheet_connection(type="main", create=False):
         try:
             sheet = spreadsheet.worksheet("feedback")
         except gspread.WorksheetNotFound:
-            return None # Feedback tab doesn't exist
+            if create:
+                sheet = spreadsheet.add_worksheet(title="feedback", rows=100, cols=3)
+            else:
+                return None
     else:
         # "get_worksheet(0)" always grabs the first tab
         sheet = spreadsheet.get_worksheet(0)
@@ -206,22 +216,6 @@ if st.session_state["username"] == "admin":
     with st.sidebar:
         st.header("👑 Admin Panel")
         
-        # Admin Feedback Check (To test if the blue box works)
-        try:
-            feedback_sheet = get_sheet_connection("feedback")
-            if feedback_sheet:
-                fb_data = feedback_sheet.get_all_records()
-                fb_df = pd.DataFrame(fb_data)
-                
-                if not fb_df.empty and "username" in fb_df.columns:
-                    # Check if 'admin' has a note
-                    user_fb = fb_df[fb_df["username"] == "admin"]
-                    if not user_fb.empty:
-                        last_note = user_fb.iloc[-1]
-                        st.info(f"💌 **Test Note ({last_note['month']}):**\n\n{last_note['note']}")
-        except:
-            pass
-
         st.divider()
         if st.button("Log Out Admin"):
             logout(st.session_state)
@@ -260,10 +254,48 @@ if st.session_state["username"] == "admin":
             chart = pd.DataFrame(student_records).dropna(subset=["Net_Calories"]).sort_values("Date")
             if not chart.empty:
                 st.line_chart(chart.assign(Date=pd.to_datetime(chart["Date"])), x="Date", y="Net_Calories")
-            st.caption("填写反馈：在 Google Sheets 的 feedback 分页添加对应学生的 username、month 和 note。 Add feedback in the feedback sheet.")
+
     except Exception:
         logging.getLogger(__name__).exception("Coach history unavailable")
         st.error("暂时无法读取学生记录，请稍后重试。 Could not load student records; please retry.")
+
+    # Human reviews are posted only by the signed-in coach.
+    review_users = sorted(set(st.secrets["passwords"].keys()) - {"admin"})
+    if review_users:
+        if "coach_student" in st.session_state:
+            review_user = st.session_state["coach_student"]
+        else:
+            review_user = st.selectbox("查看学生 · Student", review_users, key="coach_student")
+        st.subheader("💌 发布个别反馈 · Dietitian review")
+        st.write(f"接收学员 · Recipient: {review_user}")
+        with st.form(f"coach_review_{review_user}"):
+            kind = st.radio("点评周期 · Review type", ["每周 Weekly", "每月 Monthly"], horizontal=True)
+            period_day = st.date_input("选择点评所属周／月 · Review period", datetime.now(ZoneInfo("Asia/Kuala_Lumpur")).date())
+            body = st.text_area("给学员的反馈 · Your feedback", height=170, max_chars=6000,
+                                placeholder="做得好的地方、一个改善重点、下阶段的行动。", key=f"review_body_{review_user}")
+            publish = st.form_submit_button("发布给这位学员 · Publish review", type="primary")
+        if publish:
+            try:
+                if not body.strip():
+                    raise ValueError("Enter a review before publishing.")
+                period = review_period('weekly' if kind.startswith('每周') else 'monthly', period_day)
+                publish_feedback(get_sheet_connection("feedback", create=True), review_user, period, body)
+                st.success(f"已发布给 {review_user} · Review published ({period})")
+            except ValueError as exc:
+                st.error(str(exc))
+            except Exception:
+                logging.getLogger(__name__).exception("Review publication unavailable")
+                st.error("未能确认发布，文字已保留，请重试。 Publication was not confirmed; your text is kept. Please retry.")
+        try:
+            previous = load_feedback(get_sheet_connection("feedback"), review_user)
+            with st.expander("查看已发布点评 · Published reviews"):
+                if not previous:
+                    st.write("暂无点评 · No reviews yet")
+                for review in previous:
+                    st.markdown(f"**{review['period']}**")
+                    st.text(review['note'])
+        except Exception:
+            st.warning("暂时无法读取已发布点评 · Could not load published reviews")
 
     st.stop() 
 
@@ -277,6 +309,28 @@ st.markdown(MAY_BLOOM_CSS, unsafe_allow_html=True)
 
 # --- DAILY DRAFT ---
 st.markdown('<h1 class="mb-title"><span>🌸 May Bloom</span> Lifestyle Tracker</h1>', unsafe_allow_html=True)
+# Reviews belong to the signed-in account, independent of the selected log date.
+try:
+    reviews = load_feedback(get_sheet_connection("feedback"), st.session_state["username"])
+    review_error = False
+except Exception:
+    logging.getLogger(__name__).exception("Student feedback unavailable")
+    reviews, review_error = [], True
+review_title = (f"💌 May 的最新反馈 · {reviews[0]['period']}" if reviews
+                else "💌 May 的反馈 · Dietitian feedback")
+with st.expander(review_title):
+    st.button("更新点评 · Refresh feedback", key="refresh_feedback")
+    if review_error:
+        st.warning("暂时无法读取点评，请按更新重试。 Could not load feedback; please refresh. Your food records are unaffected.")
+    elif reviews:
+        st.markdown(f"**最新反馈 · Latest review — {reviews[0]['period']}**")
+        st.text(reviews[0]['note'])
+        if len(reviews) > 1:
+            previous_period = st.selectbox("以往点评 · Previous reviews", [r['period'] for r in reviews[1:]], key="previous_review")
+            st.text(next(r['note'] for r in reviews[1:] if r['period'] == previous_period))
+    else:
+        st.write("收到点评后会显示在这里 · Your dietitian's reviews will appear here.")
+
 entry_date = st.date_input("📅 Date of Entry · 记录日期", datetime.now(ZoneInfo("Asia/Kuala_Lumpur")).date(), key="entry_date")
 draft = select_draft(st.session_state, st.session_state["username"], entry_date)
 if not draft.get("loaded"):
@@ -392,22 +446,6 @@ with st.sidebar:
     st.markdown('<div class="mb-profile-kicker">MY PROFILE · 个人资料</div>', unsafe_allow_html=True)
     st.header(f"👤 {st.session_state['username'].title()}")
     
-    # --- 💌 COACH FEEDBACK ---
-    try:
-        feedback_sheet = get_sheet_connection("feedback")
-        if feedback_sheet:
-            fb_data = feedback_sheet.get_all_records()
-            fb_df = pd.DataFrame(fb_data)
-            
-            if not fb_df.empty and "username" in fb_df.columns:
-                user_fb = fb_df[fb_df["username"] == st.session_state["username"]]
-                if not user_fb.empty:
-                    last_note = user_fb.iloc[-1]
-                    st.info(f"💌 **Coach's Note ({last_note['month']}):**\n\n{last_note['note']}")
-    except:
-        pass 
-    # -------------------------
-
     st.divider()
     
     profile = render_profile_panel()
