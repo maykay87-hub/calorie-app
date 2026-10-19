@@ -23,7 +23,8 @@ MAY_BLOOM_CSS = '''<style>
 .mb-balance { display:inline-block; margin-top:.65rem; padding:.25rem .6rem; font-size:.8rem; font-weight:600; background:#e2f0e6; border-radius:30px; color:#2d6748; }
 .mb-balance.over { background:#fae4db; color:#974b32; }
 .mb-progress-title { color:#6f535e; font-size:.95rem; font-weight:600; margin:.2rem 0 .5rem; }
-[data-testid="stProgress"] [role="progressbar"]>div { background:#d17493; }
+[data-testid="stProgressBarTrack"] { background:#f2edf0; }
+[data-testid="stProgressBarTrack"]>div { background:#d17493; }
 .mb-remaining { display:flex; gap:.8rem; align-items:center; border:1px solid #cfe6df; background:#edf8f3; border-radius:12px; padding:.8rem 1.1rem; margin:.45rem 0 1rem; color:#2d6748; }
 .mb-remaining strong { font-size:1.65rem; }
 .mb-remaining span { font-size:1rem; }

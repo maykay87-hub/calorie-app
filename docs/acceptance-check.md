@@ -128,11 +128,11 @@ remain signed out; successful sign-in removes login input credentials from sessi
 state. Tests cover rejection, retry, credential cleanup and logout/account isolation.
 The four runtime dependencies are present in requirements.txt.
 
-The exact deployed test URL is still unconfirmed: screenshots expose only a
-truncated address. GitHub's available fetch interface did not allow deployment
-listing. A prior suggested subdomain is not evidence of the actual deployed URL.
-To complete the single live acceptance pass, obtain the full URL from the
-currently used test app's address bar; no service-account private key is needed.
+The confirmed test URL is https://calorie-app-pmjb9bbwfmikr8yqgicxdc.streamlit.app/.
+The protected revised desktop UI was checked after secure sign-in on 19 October:
+saved profile 162 cm / 52 kg, target 1300 kcal; existing test day restored at
+100 kcal with 1200 remaining. Food and exercise forms and saved-history chart
+rendered. No new daily records or profile changes were written in this pass.
 
 ## Calorie-first interface revision (19 October)
 
@@ -158,4 +158,11 @@ undo, account-isolation and label workflows continue to pass.
 The HTML files ui-review-desktop.html and ui-review-mobile.html are clearly marked
 layout previews with sample values, not live account screenshots. Their main cards
 reuse tracker_ui.py. Visual inspection of the static reviews is complete; the revised
-protected live UI still needs a browser session for a final render check.
+protected desktop live UI has now been checked. A fresh phone viewport render check remains outstanding.
+
+## Live progress colour correction
+
+The live progressbar reported 7%, but the custom CSS coloured its entire track
+rose. Keep the track neutral and apply rose only to its inner fill. This changes
+presentation only; calories, targets, stored records and progress arithmetic stay
+unchanged. Production main remains unchanged.
