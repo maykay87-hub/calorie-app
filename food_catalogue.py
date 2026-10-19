@@ -7,7 +7,7 @@ ALL_FOODS = "全部食物 · All foods"
 RECENT_FOODS = "最近使用 · Recent"
 MEAL_LABELS = {"Breakfast": "早餐 Breakfast", "Lunch": "午餐 Lunch", "Dinner": "晚餐 Dinner", "Snack": "加餐 Snack"}
 
-CATEGORIES = ["主食与谷物 · Grains & starches","水果 · Fruit","蔬菜 · Vegetables","肉蛋豆鱼 · Protein foods","奶类与酸奶 · Dairy","油脂与坚果 · Fats & nuts","本地餐食 · Local meals","饮料 · Drinks"]
+CATEGORIES = ["主食与谷物 · Grains & starches","水果 · Fruit","蔬菜 · Vegetables","肉蛋豆鱼 · Protein foods","奶类与酸奶 · Dairy","油脂与坚果 · Fats & nuts","本地餐食 · Local meals","饮料 · Drinks","酱料 · Sauces"]
 
 FOOD_META = {
     "Rice (1/2 cup)": ("白饭（半杯）", "主食与谷物 · Grains & starches"),
@@ -20,7 +20,7 @@ FOOD_META = {
     "Cream Crackers (3 pieces)": ("苏打饼（3片）", "主食与谷物 · Grains & starches"),
     "Plain Biscuits / Marie (3 pieces)": ("玛丽饼／原味饼干（3片）", "主食与谷物 · Grains & starches"),
     "Bun (1 small plain)": ("原味小面包（1个）", "主食与谷物 · Grains & starches"),
-    "Spaghetti (1/2 cup)": ("意大利面（半杯）", "主食与谷物 · Grains & starches"),
+    "Spaghetti (1/2 cup)": ("熟意大利面，不含酱（半杯）", "主食与谷物 · Grains & starches"),
     "Baked beans,canned/ Lentils (1/3 cup)": ("罐头焗豆／扁豆（⅓杯）", "主食与谷物 · Grains & starches"),
     "Apple (1 small)": ("苹果（小，1个）", "水果 · Fruit"),
     "Orange (1 small)": ("橙（小，1个）", "水果 · Fruit"),
@@ -128,7 +128,7 @@ def _matches_search(query, searchable):
 def filter_foods(database, category=ALL_FOODS, query="", recent=()):
     query = _search_text(query)
     visible = [key for key in database if key not in HIDDEN_LEGACY_IDS]
-    visible.sort(key=lambda key: 0 if REFERENCE_RECORDS.get(key, {}).get("source_id") == "hpb_sgfoodid"
+    visible.sort(key=lambda key: -1 if REFERENCE_RECORDS.get(key, {}).get("preferred_reference") else 0 if REFERENCE_RECORDS.get(key, {}).get("source_id") == "hpb_sgfoodid"
                  else 1 if key in REFERENCE_RECORDS else 2)
     # A typed food name always searches the entire database. Categories only
     # narrow browsing when the search box is empty.
@@ -151,6 +151,10 @@ def food_picker_label(food_id):
     reference = REFERENCE_RECORDS.get(food_id)
     if reference:
         portion = reference.get('portion_zh', reference['portion'])
+        amount, unit = reference_portion(reference)
+        portion = f"{portion}，{format(amount, 'g')}{unit}"
+        if reference.get('recipe_variant'):
+            portion += f"，{reference['recipe_variant']}"
         name = food_id.split(' (' + reference['portion'] + ',', 1)[0]
         return f"{reference['zh']} · {name}（{portion}）"
     return food_label(food_id)

@@ -112,6 +112,10 @@ def save_daily_summary(selected_date, food_log, exercise_log, net_calories):
         draft_saved.pop("conflict", None)
         draft_saved["saved_signature"] = daily_signature(food_log, exercise_log)
         st.session_state["daily_save_notice"] = str(selected_date)
+        celebrated = st.session_state.setdefault("celebrated_record_days", set())
+        if (food_log or exercise_log) and str(selected_date) not in celebrated:
+            celebrated.add(str(selected_date))
+            st.session_state["record_celebration"] = str(selected_date)
         st.session_state.pop("history_cache", None)
         return True
     except SaveConflictError as exc:
@@ -385,7 +389,7 @@ with st.expander("使用提示 · How to use"):
     st.markdown("1. **饮食 Food Log：**选日期、餐次、食物与份量 → **Add Meal**。\n"
                 "2. **运动 Exercise Log：**选运动、填分钟 → **添加运动 Add activity**。\n"
                 "3. 记录后按 **保存当天记录 Save**；到 **Wellness History** 回看或打开某天修改。\n\n"
-                "找不到食物时，可用「备注／附上文件」保存；热量待补充时，余额暂不显示。\n\n"
+                "找不到食物时，可用「备注／附上文件」保存；未计入的食物会注明，余额显示为暂估。\n\n"
                 "**Remaining = 今日目标 − 饮食摄入 + 运动消耗。**负数代表高于当前目标。")
 if draft.get("legacy"):
     st.caption("此日期是旧版摘要。可查看原记录；如需重新填写，请先添加完整记录再确认替换。 Older summary: view below, or enter a complete replacement.")
@@ -536,8 +540,10 @@ incomplete_energy = pending_foods > 0 or not notes_available
 st.markdown(calorie_summary(total_intake, total_burned, net_calories,
     None if incomplete_energy else remaining), unsafe_allow_html=True)
 if incomplete_energy:
-    st.info(f"当前只显示已计热量；另有 {pending_foods} 笔食物热量待补充，暂不显示今日余额。 Food calories are incomplete; Remaining is paused."
-            if notes_available else "补充记录暂时无法读取，暂不显示今日余额。 Remaining is paused until supplementary records load.")
+    if remaining is not None:
+        st.markdown(remaining_panel(remaining, provisional=True), unsafe_allow_html=True)
+    st.info(f"余额仅按已填饮食与运动计算；另有 {pending_foods} 笔食物尚未计入。 Food calories are incomplete; remaining is provisional."
+            if notes_available else "补充记录暂时无法读取，余额仅按已填记录暂估。 Supplementary records unavailable; remaining is provisional.")
 elif daily_needs is not None:
     st.markdown('<div class="mb-progress-title">Daily Energy Progress · 今日热量进度</div>', unsafe_allow_html=True)
     st.progress(min(max(net_calories / daily_needs, 0.0), 1.0))
@@ -549,6 +555,9 @@ if daily_signature(st.session_state.food_log, st.session_state.exercise_log) != 
     st.warning("有未保存的修改 · Unsaved changes")
 elif st.session_state.pop("daily_save_notice", None) == str(entry_date):
     st.success(f"已保存 Saved · {entry_date}")
+if st.session_state.pop("record_celebration", None) == str(entry_date):
+    st.success("🎉 记录已保存！又为自己的习惯迈出一步。")
+    st.balloons()
 
 pending = pending_dates(st.session_state, st.session_state["username"])
 if pending:

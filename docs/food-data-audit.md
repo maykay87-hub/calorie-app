@@ -180,3 +180,55 @@ exports separate complete protein totals from partial known values and keep
 legacy/unavailable values blank. The stale-page guard compares the loaded daily
 snapshot with a fresh read; it is not a transactional database guarantee. Detailed
 behaviour and the consolidated 99-test validation are in docs/acceptance-check.md.
+
+## Remaining, wantan portions and pasta review — 19 October 2026
+
+The synthetic TEST attachment note retained `needs_calories=true`, which caused the
+existing interface to suppress Remaining even after the user added other food.
+The revised interface keeps an amber, explicitly provisional Remaining based only
+on entered food/exercise when supplementary records are pending or unreadable.
+It does not claim that unknown food is zero, show a complete green check, or
+include incomplete days in the complete-history trend. Normal complete-day
+Remaining and the prior target formula are unchanged. The short guide now matches.
+
+Wantan sources are recipe/portion examples, not interchangeable bowls:
+- KKM Bank Kalori PDF p.61: dry 330g / 440 kcal; soup 408g / 300 kcal. Both rows
+  carry original reference SFC. KKM publication is not proof of Malaysian lab analysis.
+- Previously imported SG FoodID: dry 388g / 625 kcal, F05060134; soup 678g / 631 kcal,
+  F05060135. Keep the prior snapshots and published import values unchanged. The
+  current official SG details page could not be read during this recheck; no fresh
+  validation of SG values or full database accuracy is claimed. Secondary pages
+  disagree on some SG soup/ban-mian values and are not used to overwrite official imports.
+- Restore KKM wantan choices previously hidden by SG replacements; prefer the
+  explicitly marked KKM examples in search. Show reference weight and recipe
+  variant so the user can distinguish 330g vs 388g. Never average sources or reduce
+  a calorie value simply because it seems high. Existing saved entries are unchanged.
+
+Rechecked directly against the official KKM PDF:
+https://hq.moh.gov.my/nutrition/wp-content/uploads/2025/10/Bank-Calorie-Bahagian-Pemakanan-merged.pdf
+
+Added six calorie-only records; missing macros remain null:
+| Preparation | Reference serving | kcal | PDF page | Original reference |
+|---|---:|---:|---:|---|
+| Tomato basil spaghetti, sauce included | 230g bowl | 295 | 94 | NP |
+| Chicken/mushroom spaghetti, whole meal | 526g plate | 465 | 93 | MFC |
+| Pizza Hut creamy carbonara fettuccine, regular | 360g | 520 | 21 | Pizzahut |
+| Chicken aglio olio spaghetti, whole meal | 150g plate | 329 | 93 | NP |
+| Carbonara sauce only, no pasta | 30g scoop | 119 | 91 | EVENT |
+| Mushroom sauce only, no pasta | 10g teaspoon | 16 | 91 | NP |
+
+Do not relabel a brand-specific dish as generic carbonara or add sauce twice to
+a complete dish. Plain legacy spaghetti is explicitly cooked pasta WITHOUT sauce;
+its original 75 kcal half-cup exchange estimate has no independent per-entry
+source verification and was not retroactively certified.
+
+Recipe variation can be large: MyFCD Industry's named Campbell/Prego Carbonara
+Mushroom record gives 76 kcal/100g (published 2023-06-27), unlike KKM's EVENT sauce
+example above. This is NOT merged as a generic sauce or used as interchangeable
+nutrition. Match the exact branded label when possible:
+https://myfcd.moh.gov.my/myfcdindustri/index.php/site/detail_product/1300908/0/10/-1/0/0/
+
+Recording celebration is triggered only after a confirmed nonempty daily save,
+once per date within the current sign-in. It rewards recording, not low intake,
+weight loss, a net-calorie deficit, or exercise calories. A failed or repeated save
+does not trigger balloons. No persistent streak/leaderboard/achievement system is claimed.

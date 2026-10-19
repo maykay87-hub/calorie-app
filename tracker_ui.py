@@ -30,6 +30,7 @@ MAY_BLOOM_CSS = '''<style>
 .mb-remaining span { font-size:1rem; }
 .mb-remaining .mb-check { font-size:1.5rem; }
 .mb-remaining.over { border-color:#f0d2bd; background:#fff2e8; color:#8b492d; }
+.mb-remaining.provisional { border-color:#ead7ad; background:#fff8e8; color:#765820; }
 .mb-section-title { color:#b34c72!important; font-size:1.55rem!important; margin:.7rem 0 .8rem!important; padding:0!important; }
 .mb-section-title small { color:#8b6875; font-size:.85rem; font-weight:400; margin-left:.6rem; }
 [data-testid="stForm"] { background:#fff; border:1px solid #efdce4; border-radius:14px; }
@@ -78,9 +79,12 @@ def calorie_summary(intake, burned, net, remaining):
             f'<dl class="mb-stat mb-stat-net"><dt>⚖️ Net Calories <span>净值</span></dt><dd>{format_energy(net)}<small>kcal</small></dd>{badge}</dl></div>')
 
 
-def remaining_panel(remaining):
+def remaining_panel(remaining, provisional=False):
     over = remaining < 0
-    return (f'<div class="mb-remaining{" over" if over else ""}" role="status">'
-            f'<span class="mb-check">{"↗" if over else "✓"}</span>'
+    label = "above target · 高于目标" if over else "remaining · 今日剩余"
+    if provisional:
+        label = "above target · 暂估高于目标" if over else "remaining · 暂估剩余"
+    return (f'<div class="mb-remaining{" provisional" if provisional else " over" if over else ""}" role="status">'
+            f'<span class="mb-check">{"≈" if provisional else "↗" if over else "✓"}</span>'
             f'<div><strong>{format_energy(abs(remaining))}</strong> '
-            f'<span>kcal {"above target · 高于目标" if over else "remaining · 今日剩余"}</span></div></div>')
+            f'<span>kcal {label}</span></div></div>')

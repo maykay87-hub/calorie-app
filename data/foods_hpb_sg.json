@@ -33,9 +33,8 @@
       "method": "Lab Analysis",
       "aliases": "云吞麵 云吞面 干捞 wantan wonton wanton mee dry kering",
       "category": "本地餐食 · Local meals",
-      "replaces": [
-        "Wantan Mee Dry (1 plate, 330 g; KKM reference)"
-      ]
+      "replaces": [],
+      "recipe_variant": "新加坡配方"
     },
     {
       "id": "Wantan Mee Soup (1 bowl, 678 g; HPB SG reference)",
@@ -62,9 +61,8 @@
       "method": "Lab Analysis",
       "aliases": "云吞麵 云吞面 汤面 wantan wonton wanton mee soup sup",
       "category": "本地餐食 · Local meals",
-      "replaces": [
-        "Wantan Mee Soup (1 bowl, 408 g; KKM reference)"
-      ]
+      "replaces": [],
+      "recipe_variant": "新加坡配方"
     },
     {
       "id": "Pan Mee Dry (1 bowl, 407 g; HPB SG reference)",

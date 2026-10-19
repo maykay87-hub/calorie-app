@@ -14,7 +14,7 @@ class ReferenceFoodTests(unittest.TestCase):
         self.database = reference_database()
 
     def test_reference_manifest_has_traceable_portions_and_explicit_missing_macros(self):
-        self.assertEqual(len(REFERENCE_RECORDS), 103)
+        self.assertEqual(len(REFERENCE_RECORDS), 109)
         for key, item in REFERENCE_RECORDS.items():
             with self.subTest(food=key):
                 amount, unit = reference_portion(item)
@@ -48,9 +48,9 @@ class ReferenceFoodTests(unittest.TestCase):
     def test_soup_and_dry_noodles_are_distinct_portion_specific_records(self):
         wantan = filter_foods(self.database, query="云吞面")
         pan = filter_foods(self.database, query="板面")
-        self.assertEqual(len(wantan), 2)
+        self.assertEqual(len(wantan), 4)
         self.assertEqual(len(pan), 3)
-        self.assertEqual(sorted(self.database[key]["Cals"] for key in wantan), [625, 631])
+        self.assertEqual(sorted(self.database[key]["Cals"] for key in wantan), [300, 440, 625, 631])
         self.assertEqual(sorted(self.database[key]["Cals"] for key in pan), [602, 655, 678])
         self.assertEqual(len(filter_foods(self.database, query="chilli pan mee")), 1)
 

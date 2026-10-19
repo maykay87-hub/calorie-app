@@ -19,3 +19,11 @@ class CaloriePresentationTests(unittest.TestCase):
         self.assertIn(REFERENCE_RECORDS[key]['zh'], label)
         self.assertNotIn('SG参考', label)
         self.assertNotIn('HPB', label)
+
+    def test_provisional_remaining_is_visible_and_never_a_complete_green_check(self):
+        panel = remaining_panel(613, provisional=True)
+        self.assertIn('613', panel)
+        self.assertIn('暂估剩余', panel)
+        self.assertIn('provisional', panel)
+        self.assertNotIn('✓', panel)
+        self.assertIn('暂估高于目标', remaining_panel(-20, provisional=True))

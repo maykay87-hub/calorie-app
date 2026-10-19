@@ -21,6 +21,8 @@ def render_demo():
     st.info('公开体验 · Demo — 示范资料仅留在本次页面，不会进入学员账号。')
     if st.session_state.pop('demo_save_notice', False):
         st.success('演示记录已保存到本次页面，可到 Wellness History 回看；不写入云端。')
+    if st.session_state.pop('demo_celebration', False):
+        st.balloons()
     profile = st.session_state.setdefault('demo_profile', {'height_cm': 160.0, 'weight_kg': 60.0, 'activity': ACTIVITIES[0]})
     with st.sidebar:
         st.markdown('<div class="mb-profile-kicker">DEMO PROFILE · 示范个人资料</div>', unsafe_allow_html=True)
@@ -62,7 +64,8 @@ def render_demo():
     pending_count = sum(1 for note in notes if note['needs_calories'])
     st.markdown(calorie_summary(intake, burned, intake - burned, None if pending_count else remaining), unsafe_allow_html=True)
     if pending_count:
-        st.info(f'另有 {pending_count} 笔食物热量待补充，暂不显示余额 · Remaining paused for uncounted food')
+        st.markdown(remaining_panel(remaining, provisional=True), unsafe_allow_html=True)
+        st.info(f'另有 {pending_count} 笔食物尚未计入；余额仅按已填记录暂估 · Provisional remaining')
     else:
         st.markdown('<p class="mb-progress-title">Daily Energy Progress · 今日热量进度</p>', unsafe_allow_html=True)
         st.progress(max(0.0, min(1.0, (intake - burned) / target)))
@@ -157,12 +160,16 @@ def render_demo():
         else:
             st.write('添加饮食或运动后，按下方保存即可在这里查看。')
     if st.button('体验保存 · Try save', type='primary', use_container_width=True):
+        celebrated = st.session_state.setdefault('demo_celebrated_days', set())
+        if (draft['food_log'] or draft['exercise_log']) and str(selected_day) not in celebrated:
+            celebrated.add(str(selected_day))
+            st.session_state['demo_celebration'] = True
         saved[str(selected_day)] = deepcopy(draft)
         st.session_state['demo_save_notice'] = True
         st.rerun()
     left, right = st.columns(2)
     if left.button('重新体验 · Reset demo'):
-        for key in ('demo_days', 'demo_saved', 'demo_foods', 'demo_burned'):
+        for key in ('demo_days', 'demo_saved', 'demo_foods', 'demo_burned', 'demo_celebrated_days', 'demo_celebration'):
             st.session_state.pop(key, None)
         st.rerun()
     if right.button('学员登入 · Student login'):

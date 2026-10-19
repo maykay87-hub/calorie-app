@@ -69,7 +69,7 @@ class AppFlowTests(unittest.TestCase):
         self.assertFalse(self.at.exception)
         self.assertEqual(len(self.notes.rows), 2)
         self.assertTrue(any('Food calories are incomplete' in x.value for x in self.at.info))
-        self.assertFalse(any('kcal remaining' in x.value for x in self.at.markdown))
+        self.assertTrue(any('kcal remaining · 暂估剩余' in x.value for x in self.at.markdown))
         restored = self.new_app()
         self.assertTrue(any('Half bowl pan mee' in x.value for x in restored.text))
         self.at.secrets['passwords'] = {'student': 'test-pass', 'admin': 'coach-pass'}
@@ -115,6 +115,17 @@ class AppFlowTests(unittest.TestCase):
         self.assertFalse(self.at.exception)
         self.assertTrue(any('kcal remaining' in x.value for x in self.at.markdown))
         self.assertTrue(any('Missing food' in x.value for x in self.at.text))
+
+    def test_balloons_reward_first_confirmed_nonempty_save_only(self):
+        self.button('Add Meal').click().run()
+        with patch.object(self.sheet, 'append_row', side_effect=ConnectionError('offline')):
+            self.at.button(key='save_bottom_food').click().run()
+        self.assertEqual(len(self.at.get('balloons')), 0)
+        self.at.button(key='save_bottom_food').click().run()
+        self.assertFalse(self.at.exception)
+        self.assertEqual(len(self.at.get('balloons')), 1)
+        self.at.button(key='save_bottom_food').click().run()
+        self.assertEqual(len(self.at.get('balloons')), 0)
 
     def test_failed_remark_save_keeps_input_and_food_flow(self):
         remark = next(x for x in self.at.text_area if x.label.startswith('备注'))
@@ -348,6 +359,7 @@ class AppFlowTests(unittest.TestCase):
 
     def test_whole_meal_protein_reference_survives_half_serving_save_and_reload(self):
         self.at.text_input(key='food_search').set_value('dry wantan').run()
+        self.at.selectbox(key='selected_food_id').set_value('Wantan Mee Dry (1 bowl, 388 g; HPB SG reference)')
         self.assertIn('HPB SG reference', self.at.selectbox(key='selected_food_id').value)
         self.number('份数 · Servings').set_value(.5)
         self.button('Add Meal').click().run()
@@ -461,6 +473,7 @@ class AppFlowTests(unittest.TestCase):
 
     def test_quarter_serving_and_short_exercise_save_restore(self):
         self.at.text_input(key='food_search').set_value('dry wantan').run()
+        self.at.selectbox(key='selected_food_id').set_value('Wantan Mee Dry (1 bowl, 388 g; HPB SG reference)')
         self.number('份数 · Servings').set_value(.25)
         self.button('Add Meal').click().run()
         food = self.at.session_state['food_log'][0].copy()

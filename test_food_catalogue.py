@@ -79,6 +79,22 @@ class FoodCatalogueTests(unittest.TestCase):
         self.assertEqual(self.database["Rice (1/2 cup)"]["Cals"], 75)
         self.assertEqual(food_label("New food"), "New food")
 
+    def test_wantan_references_remain_distinct_and_pasta_does_not_omit_sauce(self):
+        wantan = filter_foods(self.database, query='干捞云吞面')
+        self.assertEqual(self.database[wantan[0]]['Cals'], 440)
+        from food_catalogue import food_picker_label
+        labels = [food_picker_label(key) for key in wantan]
+        self.assertTrue(any('330g' in label for label in labels))
+        self.assertTrue(any('388g' in label and '新加坡配方' in label for label in labels))
+        self.assertIn('不含酱', food_picker_label('Spaghetti (1/2 cup)'))
+        for query in ('番茄 意大利面', '蘑菇 意大利面', 'carbonara'):
+            self.assertTrue(filter_foods(self.database, query=query))
+        tomato = 'Spaghetti Tomato Basil (1 bowl, 230 g; KKM reference)'
+        entry = self.database[tomato]
+        self.assertEqual(entry['Cals'], 295)
+        self.assertIsNone(entry['Prot'])
+        self.assertIn('含酱', food_picker_label(tomato))
+
 
 if __name__ == "__main__":
     unittest.main()

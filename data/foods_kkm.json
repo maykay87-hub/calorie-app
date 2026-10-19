@@ -7,7 +7,9 @@
     "reference_codes": {
       "MFC": "Malaysian Food Composition",
       "SFC": "Singapore Food Composition",
-      "NP": "Nutritionist Pro"
+      "NP": "Nutritionist Pro",
+      "EVENT": "KKM compilation: EVENT reference",
+      "Pizzahut": "Pizza Hut reference as compiled by KKM; not a current vendor label"
     }
   },
   "records": [
@@ -24,7 +26,9 @@
       "pdf_page": 61,
       "reference_code": "SFC",
       "aliases": "云吞面 云吞麵 wanton wonton wantan mee soup mi wantan sup",
-      "category": "本地餐食 · Local meals"
+      "category": "本地餐食 · Local meals",
+      "preferred_reference": true,
+      "recipe_variant": "KKM收录配方"
     },
     {
       "id": "Wantan Mee Dry (1 plate, 330 g; KKM reference)",
@@ -39,7 +43,9 @@
       "pdf_page": 61,
       "reference_code": "SFC",
       "aliases": "云吞面 云吞麵 干捞 乾撈 wanton wonton wantan mee dry kering",
-      "category": "本地餐食 · Local meals"
+      "category": "本地餐食 · Local meals",
+      "preferred_reference": true,
+      "recipe_variant": "KKM收录配方"
     },
     {
       "id": "Pan Mee Soup (1 bowl, 528 g; KKM reference)",
@@ -778,6 +784,102 @@
       "reference_code": "SFC",
       "aliases": "拉茶 teh tarik",
       "category": "饮料 · Drinks"
+    },
+    {
+      "id": "Spaghetti Tomato Basil (1 bowl, 230 g; KKM reference)",
+      "zh": "番茄罗勒酱意大利面（含酱）",
+      "original_name": "Spageti dengan Sos Tomato dan Selasih",
+      "portion": "1 bowl",
+      "weight_g": 230,
+      "energy_kcal": 295,
+      "protein_g": null,
+      "carbs_g": null,
+      "fat_g": null,
+      "pdf_page": 94,
+      "reference_code": "NP",
+      "aliases": "tomato basil pasta spaghetti 番茄 红酱 意大利面",
+      "category": "本地餐食 · Local meals",
+      "portion_zh": "1碗"
+    },
+    {
+      "id": "Spaghetti Chicken Mushroom (1 plate, 526 g; KKM reference)",
+      "zh": "鸡肉蘑菇意大利面（整餐）",
+      "original_name": "Spageti Ayam, Cendawan, dll.",
+      "portion": "1 plate",
+      "weight_g": 526,
+      "energy_kcal": 465,
+      "protein_g": null,
+      "carbs_g": null,
+      "fat_g": null,
+      "pdf_page": 93,
+      "reference_code": "MFC",
+      "aliases": "chicken mushroom pasta spaghetti 鸡肉 蘑菇 意大利面",
+      "category": "本地餐食 · Local meals",
+      "portion_zh": "1盘"
+    },
+    {
+      "id": "Pizza Hut Carbonara Fettuccine (1 regular serving, 360 g; KKM reference)",
+      "zh": "奶油Carbonara宽面（Pizza Hut普通份，含酱）",
+      "original_name": "Creamy Carbonara Fettucini Pizza Hut (regular)",
+      "portion": "1 regular serving",
+      "weight_g": 360,
+      "energy_kcal": 520,
+      "protein_g": null,
+      "carbs_g": null,
+      "fat_g": null,
+      "pdf_page": 21,
+      "reference_code": "Pizzahut",
+      "aliases": "carbonara creamy pasta fettuccine 奶油 白酱 意大利面",
+      "category": "本地餐食 · Local meals",
+      "portion_zh": "1普通份"
+    },
+    {
+      "id": "Spaghetti Aglio Olio Chicken (1 plate, 150 g; KKM reference)",
+      "zh": "蒜香橄榄油鸡肉意大利面（整餐）",
+      "original_name": "Spageti Aglio Olio dengan Daging Ayam",
+      "portion": "1 plate",
+      "weight_g": 150,
+      "energy_kcal": 329,
+      "protein_g": null,
+      "carbs_g": null,
+      "fat_g": null,
+      "pdf_page": 93,
+      "reference_code": "NP",
+      "aliases": "aglio olio chicken pasta spaghetti 蒜香 橄榄油 鸡肉 意大利面",
+      "category": "本地餐食 · Local meals",
+      "portion_zh": "1盘"
+    },
+    {
+      "id": "Carbonara Sauce Only (1 scoop, 30 g; KKM reference)",
+      "zh": "Carbonara奶油酱（仅酱汁，不含面）",
+      "original_name": "Sos Carbonara",
+      "portion": "1 scoop",
+      "weight_g": 30,
+      "energy_kcal": 119,
+      "protein_g": null,
+      "carbs_g": null,
+      "fat_g": null,
+      "pdf_page": 91,
+      "reference_code": "EVENT",
+      "aliases": "carbonara sauce white cream 奶油酱 白酱 意大利面酱",
+      "category": "酱料 · Sauces",
+      "portion_zh": "1勺"
+    },
+    {
+      "id": "Mushroom Sauce Only (1 teaspoon, 10 g; KKM reference)",
+      "zh": "蘑菇酱（仅酱汁，不含面）",
+      "original_name": "Sos Cendawan",
+      "portion": "1 teaspoon",
+      "weight_g": 10,
+      "energy_kcal": 16,
+      "protein_g": null,
+      "carbs_g": null,
+      "fat_g": null,
+      "pdf_page": 91,
+      "reference_code": "NP",
+      "aliases": "mushroom sauce cendawan 蘑菇酱 意大利面酱",
+      "category": "酱料 · Sauces",
+      "portion_zh": "1茶匙"
     }
   ]
 }
