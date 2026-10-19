@@ -187,3 +187,16 @@ exercise, try-save and reset. Course wording, website connection instructions
 and a 90-second demo script are in course-offer-and-demo.md. Website integration,
 production merge, student free-text/attachments and AI photo detection are not
 part of this published test-stage change.
+
+## Short guide and non-replacing feedback timeline
+
+122 checks pass. The short guide now includes Food Log, Exercise Log, Save and
+Wellness History, plus one Remaining formula. Every feedback row is accessible,
+including supplements for the same period; earlier notes are no longer collapsed
+away. New coach publications append a Malaysia-time ISO timestamp in an optional
+published_at column, added only when publishing. Existing rows/extra columns
+are preserved; legacy records retain their period without fabricated timestamps.
+Reviews sort by actual publication time where available. Student history selects
+unique row keys, so same-period notes do not collide. Tests cover same-period
+visibility, timestamps, late follow-ups, account isolation and schema preservation.
+No live review was posted merely to test this change.

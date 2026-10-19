@@ -20,8 +20,21 @@ class FeedbackTests(unittest.TestCase):
         self.assertEqual(publish_feedback(sheet, 'a', '2026-10', '=literal text'), 'unchanged')
         publish_feedback(sheet, 'a', '2026-10', 'Revised note')
         self.assertEqual(len(sheet.rows), 3)
-        self.assertEqual(sheet.rows[1][-1], '=literal text')
-        self.assertEqual(load_feedback(sheet, 'a')[0]['note'], 'Revised note')
+        self.assertEqual(sheet.rows[1][2], '=literal text')
+        reviews = load_feedback(sheet, 'a')
+        self.assertEqual([r['note'] for r in reviews], ['Revised note', '=literal text'])
+        self.assertTrue(all(r['published_at'] for r in reviews))
+
+    def test_actual_publication_time_orders_supplements_not_review_period(self):
+        sheet = Sheet([HEADERS + ['published_at'],
+            ['a', '2026-10', 'First', '2026-10-19T16:00:00+08:00'],
+            ['a', '2026-09', 'Late September follow-up', '2026-10-19T17:00:00+08:00'],
+            ['a', '2026-10', 'Second', '2026-10-19T16:30:00+08:00'],
+            ['b', '2026-10', 'Private', '2026-10-19T18:00:00+08:00']])
+        reviews = load_feedback(sheet, 'a')
+        self.assertEqual([r['note'] for r in reviews], ['Late September follow-up', 'Second', 'First'])
+        self.assertEqual(reviews[0]['published_at'], '2026-10-19 17:00')
+        self.assertEqual(len({r['key'] for r in reviews}), 3)
 
     def test_malformed_headers_and_blank_notes_never_write(self):
         sheet = Sheet([['wrong'], ['preserve me']])
@@ -40,7 +53,9 @@ class FeedbackTests(unittest.TestCase):
         sheet = Sheet([['note', 'custom', 'month', 'username'], ['Old', 'kept', '2026-09', 'a']])
         publish_feedback(sheet, 'a', '2026-10', 'New')
         self.assertEqual(sheet.rows[1][1], 'kept')
-        self.assertEqual(sheet.rows[2], ['New', '', '2026-10', 'a'])
+        self.assertEqual(sheet.rows[2][:4], ['New', '', '2026-10', 'a'])
+        self.assertEqual(sheet.rows[0][-1], 'published_at')
+        self.assertTrue(sheet.rows[2][-1].endswith('+08:00'))
 
 
 if __name__ == '__main__':

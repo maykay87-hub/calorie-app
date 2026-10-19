@@ -293,6 +293,7 @@ if st.session_state["username"] == "admin":
                     st.write("暂无点评 · No reviews yet")
                 for review in previous:
                     st.markdown(f"**{review['period']}**")
+                    st.caption(f"发布时间 · Posted (MYT): {review['published_at']}" if review['published_at'] else "原有点评 · Original review (publication time unavailable)")
                     st.text(review['note'])
         except Exception:
             st.warning("暂时无法读取已发布点评 · Could not load published reviews")
@@ -324,10 +325,15 @@ with st.expander(review_title):
         st.warning("暂时无法读取点评，请按更新重试。 Could not load feedback; please refresh. Your food records are unaffected.")
     elif reviews:
         st.markdown(f"**最新反馈 · Latest review — {reviews[0]['period']}**")
+        st.caption(f"发布时间 · Posted (MYT): {reviews[0]['published_at']}" if reviews[0]['published_at'] else "原有点评 · Original review (publication time unavailable)")
         st.text(reviews[0]['note'])
         if len(reviews) > 1:
-            previous_period = st.selectbox("以往点评 · Previous reviews", [r['period'] for r in reviews[1:]], key="previous_review")
-            st.text(next(r['note'] for r in reviews[1:] if r['period'] == previous_period))
+            previous_reviews = {r['key']: r for r in reviews[1:]}
+            previous_key = st.selectbox("以往点评 · Previous reviews", list(previous_reviews),
+                format_func=lambda key: f"{previous_reviews[key]['published_at'] or '原有点评'} · {previous_reviews[key]['period']} · {previous_reviews[key]['note'][:24]}", key="previous_review")
+            previous_review = previous_reviews[previous_key]
+            st.caption(f"发布时间 · Posted (MYT): {previous_review['published_at']}" if previous_review['published_at'] else "原有点评 · Original review (publication time unavailable)")
+            st.text(previous_review['note'])
     else:
         st.write("收到点评后会显示在这里 · Your dietitian's reviews will appear here.")
 
@@ -353,7 +359,10 @@ if not draft.get("loaded"):
             st.rerun()
         st.stop()
 with st.expander("使用提示 · How to use"):
-    st.write("选择日期 → 填写餐次、食物与份量 → Add Meal。记录完后按「保存当天记录」。 Choose a date, select your meal, food and serving, then Add Meal. Save when finished.")
+    st.markdown("1. **饮食 Food Log：**选日期、餐次、食物与份量 → **Add Meal**。\n"
+                "2. **运动 Exercise Log：**选运动、填分钟 → **添加运动 Add activity**。\n"
+                "3. 记录后按 **保存当天记录 Save**；到 **Wellness History** 回看或打开某天修改。\n\n"
+                "**Remaining = 今日目标 − 饮食摄入 + 运动消耗。**负数代表高于当前目标。")
 if draft.get("legacy"):
     st.caption("此日期是旧版摘要。可查看原记录；如需重新填写，请先添加完整记录再确认替换。 Older summary: view below, or enter a complete replacement.")
     with st.expander("查看旧记录 · Previous summary"):

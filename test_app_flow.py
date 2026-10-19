@@ -83,6 +83,17 @@ class AppFlowTests(unittest.TestCase):
         restored = self.new_app()
         self.assertTrue(any('regular breakfast' in x.value for x in restored.text))
 
+    def test_same_period_feedback_supplements_remain_readable(self):
+        self.feedback.rows = [['username', 'month', 'note', 'published_at'],
+                             ['student', '2026-10', 'First personalised review', '2026-10-19T16:00:00+08:00'],
+                             ['student', '2026-10', 'Later personalised supplement', '2026-10-19T16:30:00+08:00']]
+        self.at.button(key='refresh_feedback').click().run()
+        self.assertFalse(self.at.exception)
+        self.assertTrue(any('Later personalised supplement' in x.value for x in self.at.text))
+        self.assertTrue(any('First personalised review' in x.value for x in self.at.text))
+        self.assertTrue(any('2026-10-19 16:00' in x.value for x in self.at.caption))
+        self.assertTrue(any('2026-10-19 16:30' in x.value for x in self.at.caption))
+
     def test_feedback_failure_keeps_food_entry_available(self):
         with patch.object(self.feedback, 'get_all_values', side_effect=ConnectionError('offline')):
             self.at.run()
