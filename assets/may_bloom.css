@@ -34,28 +34,30 @@
 .mb-brand-subtitle { color:var(--mb-muted); font-size:1rem!important; margin:.45rem 0 0!important; line-height:1.3!important; }
 .mb-brand-subtitle span { margin-left:.5rem; }
 .mb-summary { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:var(--mb-gap); margin:.65rem 0 1.25rem; }
-.mb-stat { min-width:0; margin:0; padding:22px 24px; border:1px solid #ecdcd0; border-radius:var(--mb-radius); background:#fff4ec; }
-.mb-stat dt { font-size:.95rem; color:#77533f; font-weight:600; line-height:1.45; margin:0 0 12px; }
+.mb-stat { min-width:0; margin:0; padding:22px 24px; border:1px solid #eedfb7; border-radius:var(--mb-radius); background:#fff6df; }
+.mb-stat dt { font-size:.95rem; color:#795521; font-weight:600; line-height:1.45; margin:0 0 12px; }
 .mb-stat dt span { font-size:.88em; font-weight:400; margin-left:.35rem; }
-.mb-stat dd { display:flex; align-items:baseline; flex-wrap:wrap; gap:7px; color:#66422d; font-size:2rem; font-weight:500; letter-spacing:-.025em; line-height:1.12; margin:0; font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
+.mb-stat dd { display:flex; align-items:baseline; flex-wrap:wrap; gap:7px; color:#6d4b1f; font-size:2rem; font-weight:500; letter-spacing:-.025em; line-height:1.12; margin:0; font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
 .mb-stat small { color:inherit; font-size:.88rem; letter-spacing:0; font-weight:400; }
 .mb-stat-exercise { background:#edf5f0; border-color:#d7e5dc; }
 .mb-stat-exercise dt,.mb-stat-exercise dd { color:#365e48; }
 .mb-stat-net { background:#faeaf1; border-color:#e7c2d2; }
 .mb-stat-net dt,.mb-stat-net dd { color:#943e5e; }
 .mb-stat-net dd { font-size:2.25rem; }
-.mb-balance { display:inline-flex; align-items:center; white-space:nowrap; margin-top:12px; padding:3px 8px; color:#38634c; background:#e4efe7; border-radius:6px; font-size:.78rem; font-weight:500; font-variant-numeric:tabular-nums; }
+.mb-balance { display:inline-flex; align-items:center; white-space:nowrap; margin-top:12px; padding:3px 8px; color:#76551f; background:#fff3cf; border-radius:6px; font-size:.78rem; font-weight:500; font-variant-numeric:tabular-nums; }
 .mb-balance.over { background:#f8e6dc; color:#875035; }
+.mb-balance.met { background:#eeebed; color:#62565e; }
 .mb-progress-title { color:var(--mb-muted); font-size:.93rem!important; font-weight:600; margin:.15rem 0 .5rem!important; }
 [data-testid="stProgressBarTrack"] { background:#eee6eb; height:7px; border-radius:20px; }
 [data-testid="stProgressBarTrack"]>div { background:var(--mb-pink); border-radius:20px; }
 .mb-progress-scale { display:flex; justify-content:space-between; gap:16px; color:var(--mb-muted); font-size:.8rem; font-variant-numeric:tabular-nums; margin:-2px 0 10px; }
-.mb-remaining { display:flex; gap:16px; align-items:center; color:#345f4c; border:1px solid #d1e3d8; background:#edf6f0; border-radius:var(--mb-radius); padding:18px 22px; margin:.3rem 0 1.5rem; }
+.mb-remaining { display:flex; gap:16px; align-items:center; color:#76551f; border:1px solid #eddfb0; background:#fff8e3; border-radius:var(--mb-radius); padding:18px 22px; margin:.3rem 0 1.5rem; }
 .mb-remaining strong { font-size:2.5rem; font-weight:500; line-height:1.15; letter-spacing:-.035em; font-variant-numeric:tabular-nums; }
 .mb-remaining span { font-size:1rem; }
 .mb-remaining .mb-check { font-size:1.5rem; flex:none; }
 .mb-remaining.over { color:#815039; border-color:#ead8c8; background:#fff2e8; }
-.mb-remaining.provisional { color:#795b24; border-color:#e9d8ad; background:#fff8e8; }
+.mb-remaining.met { color:#62565e; border-color:#ded7db; background:#f3f0f2; }
+.mb-remaining.provisional { color:#62565e; border-color:#ded7db; background:#f3f0f2; }
 .mb-section-title { color:var(--mb-rose)!important; font-size:1.5rem!important; font-weight:600!important; letter-spacing:-.02em; margin:1.1rem 0 1rem!important; padding:0!important; }
 .mb-section-title small { color:var(--mb-muted); font-size:.9rem; font-weight:400; margin-left:.6rem; letter-spacing:0; }
 [data-testid="stForm"] { background:var(--mb-surface); border:1px solid var(--mb-line); border-radius:var(--mb-radius); padding:20px; box-shadow:none; }

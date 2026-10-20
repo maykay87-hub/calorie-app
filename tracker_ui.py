@@ -23,12 +23,30 @@ def progress_scale(net, target):
             f'<span>目标 {format_energy(target)} kcal</span></div>')
 
 
+def usage_instructions(demo=False):
+    """Use the same compact guide in the demo and the signed-in tracker."""
+    save_label = '体验保存 Try save' if demo else '保存当天记录 Save'
+    return ('1. **饮食 Food Log：**选日期、餐次、食物与份数 → **Add Meal**。\n'
+            '2. **运动 Exercise Log：**选运动、填分钟 → **Add activity**。\n'
+            f'3. 记录后按 **{save_label}**。\n'
+            '4. **Wellness History：**回看记录，或打开某天继续修改。\n\n'
+            '**今日剩余 = 今日目标 − 饮食摄入 + 运动消耗。**高于目标表示当日净值超过当前目标。\n\n'
+            '找不到食物时，可写备注或附上文件；未计入热量时，余额会注明「暂估」。')
+
+
+def _balance_state(remaining):
+    # Match the displayed precision so floating-point noise cannot show "0 over".
+    shown = round(float(remaining), 1)
+    return 'over' if shown < 0 else 'met' if shown == 0 else 'remaining'
+
+
 
 def calorie_summary(intake, burned, net, remaining):
     badge = ''
     if remaining is not None:
-        over = remaining < 0
-        badge = f'<div class="mb-balance{" over" if over else ""}">{format_energy(abs(remaining))} {"over" if over else "left"}</div>'
+        state = _balance_state(remaining)
+        text = '已达目标 · At target' if state == 'met' else f'{format_energy(abs(remaining))} {"over" if state == "over" else "left"}'
+        badge = f'<div class="mb-balance {state}">{text}</div>'
     return ('<div class="mb-summary" role="group" aria-label="每日热量 Daily calories">'
             f'<dl class="mb-stat"><dt>Food Intake <span>摄入</span></dt><dd>{format_energy(intake)}<small>kcal</small></dd></dl>'
             f'<dl class="mb-stat mb-stat-exercise"><dt>Exercise Burn <span>消耗</span></dt><dd>{format_energy(burned)}<small>kcal</small></dd></dl>'
@@ -36,11 +54,16 @@ def calorie_summary(intake, burned, net, remaining):
 
 
 def remaining_panel(remaining, provisional=False):
-    over = remaining < 0
-    label = "above target · 高于目标" if over else "remaining · 今日剩余"
+    state = _balance_state(remaining)
+    label = {'over': 'above target · 高于今日目标',
+             'met': 'at target · 已达到今日目标',
+             'remaining': 'remaining · 今日剩余'}[state]
     if provisional:
-        label = "above target · 暂估高于目标" if over else "remaining · 暂估剩余"
-    return (f'<div class="mb-remaining{" provisional" if provisional else " over" if over else ""}" role="status">'
-            f'<span class="mb-check">{"≈" if provisional else "↗" if over else "✓"}</span>'
+        label = {'over': 'above target · 暂估高于目标',
+                 'met': 'balance · 暂估余额',
+                 'remaining': 'remaining · 暂估剩余'}[state]
+    icon = '<span class="mb-check" aria-hidden="true">≈</span>' if provisional else ''
+    return (f'<div class="mb-remaining {state}{" provisional" if provisional else ""}" role="status">'
+            f'{icon}'
             f'<div><strong>{format_energy(abs(remaining))}</strong> '
             f'<span>kcal {label}</span></div></div>')

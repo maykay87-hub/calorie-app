@@ -19,7 +19,7 @@ from tracker_export import export_history_csv, export_draft
 from profile_storage import ACTIVITIES, load_profile, save_profile
 from nutrition_registry import SOURCE, SG_SOURCE, REFERENCE_RECORDS, reference_database, reference_portion, make_food_entry, format_energy
 from food_catalogue import ALL_FOODS, RECENT_FOODS, CATEGORIES, MEAL_LABELS, food_label, food_picker_label, filter_foods, remember_food
-from tracker_ui import MAY_BLOOM_CSS, calorie_summary, remaining_panel, brand_header, progress_scale
+from tracker_ui import MAY_BLOOM_CSS, calorie_summary, remaining_panel, brand_header, progress_scale, usage_instructions
 
 # --- 1. APP CONFIGURATION ---
 st.set_page_config(page_title="May Bloom Advanced", page_icon="🌸", layout="wide")
@@ -386,11 +386,7 @@ if not draft.get("loaded"):
             st.rerun()
         st.stop()
 with st.expander("使用提示 · How to use"):
-    st.markdown("1. **饮食 Food Log：**选日期、餐次、食物与份量 → **Add Meal**。\n"
-                "2. **运动 Exercise Log：**选运动、填分钟 → **添加运动 Add activity**。\n"
-                "3. 记录后按 **保存当天记录 Save**；到 **Wellness History** 回看或打开某天修改。\n\n"
-                "找不到食物时，可用「备注／附上文件」保存；未计入的食物会注明，余额显示为暂估。\n\n"
-                "**Remaining = 今日目标 − 饮食摄入 + 运动消耗。**负数代表高于当前目标。")
+    st.markdown(usage_instructions())
 if draft.get("legacy"):
     st.caption("此日期是旧版摘要。可查看原记录；如需重新填写，请先添加完整记录再确认替换。 Older summary: view below, or enter a complete replacement.")
     with st.expander("查看旧记录 · Previous summary"):
@@ -545,7 +541,7 @@ if incomplete_energy:
     st.info(f"余额仅按已填饮食与运动计算；另有 {pending_foods} 笔食物尚未计入。 Food calories are incomplete; remaining is provisional."
             if notes_available else "补充记录暂时无法读取，余额仅按已填记录暂估。 Supplementary records unavailable; remaining is provisional.")
 elif daily_needs is not None:
-    st.markdown('<div class="mb-progress-title">Daily Energy Progress · 今日热量进度</div>', unsafe_allow_html=True)
+    st.markdown('<div class="mb-progress-title">今日热量 · Daily calories</div>', unsafe_allow_html=True)
     st.progress(min(max(net_calories / daily_needs, 0.0), 1.0))
     st.markdown(progress_scale(net_calories, daily_needs), unsafe_allow_html=True)
     st.markdown(remaining_panel(remaining), unsafe_allow_html=True)

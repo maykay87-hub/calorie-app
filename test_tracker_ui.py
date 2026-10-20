@@ -20,6 +20,22 @@ class CaloriePresentationTests(unittest.TestCase):
         self.assertNotIn('SG参考', label)
         self.assertNotIn('HPB', label)
 
+    def test_zero_balance_and_float_noise_show_at_target_without_over_warning(self):
+        for value in (0, 0.0000001, -0.0000001):
+            panel = remaining_panel(value)
+            self.assertIn('已达到今日目标', panel)
+            self.assertNotIn('above target', panel)
+            badge = calorie_summary(1500, 0, 1500, value)
+            self.assertIn('At target', badge)
+            self.assertNotIn('0 over', badge)
+        self.assertIn('above target', remaining_panel(-0.1))
+
+    def test_incomplete_zero_balance_does_not_claim_target_was_reached(self):
+        panel = remaining_panel(0, provisional=True)
+        self.assertIn('暂估余额', panel)
+        self.assertNotIn('已达到', panel)
+        self.assertNotIn('at target', panel)
+
     def test_provisional_remaining_is_visible_and_never_a_complete_green_check(self):
         panel = remaining_panel(613, provisional=True)
         self.assertIn('613', panel)

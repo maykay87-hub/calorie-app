@@ -1,5 +1,23 @@
 # May Bloom UI refinement · Taste Skill v2
 
+## Approved balance colours and demo guide · 2026-10-20 follow-up
+
+- Food Intake stays pale yellow, Exercise Burn green, Net Calories rose.
+- Positive Remaining uses pale yellow; zero uses a neutral surface with
+  "已达到今日目标 / At target"; over-target uses soft orange and states the excess.
+- Incomplete food records stay neutral and explicitly provisional, including
+  a zero estimate; they never claim the target is reached.
+- Balance state follows the displayed 0.1 kcal precision, so floating-point
+  subtraction cannot produce a misleading "0 over" warning.
+- The smaller Net Calories badge follows the same balance colours and zero state.
+- Demo and signed-in student views share the same collapsed How to use guide,
+  covering food, exercise, Save, History, remarks/files and the balance formula.
+  Demo names its actual Try save action; the student guide names Save.
+- The progress title is shortened to "今日热量 · Daily calories" in both views.
+- Verification: all 147 tests pass in 48.687 seconds, no failures or skips;
+  shared CSS lint 0 FAIL/0 WARN. New text/surface pairs measure 6.09:1 or higher.
+  Live deployment verification is recorded separately after the branch updates.
+
 ## Brief and method
 
 Use the project's original Streamlit stack, pink May Bloom identity, teal profile

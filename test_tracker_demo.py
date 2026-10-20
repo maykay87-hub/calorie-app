@@ -47,6 +47,10 @@ class DemoTests(unittest.TestCase):
             app.run()
             self.assertFalse(app.exception)
             self.assertFalse(app.text_input)
+            self.assertIn('使用提示 · How to use', [x.label for x in app.expander])
+            guide = next(x.value for x in app.markdown if '今日剩余 = 今日目标' in x.value)
+            for instruction in ('Food Log', 'Exercise Log', 'Try save', 'Wellness History'):
+                self.assertIn(instruction, guide)
             next(b for b in app.button if b.label.startswith('Add Meal')).click().run()
             self.assertFalse(app.exception)
             self.assertEqual(len(app.session_state['demo_foods']), 1)

@@ -7,7 +7,7 @@ from food_catalogue import food_picker_label, filter_foods, MEAL_LABELS
 from nutrition_registry import reference_database, make_food_entry
 from profile_storage import ACTIVITIES, validate_profile
 from tracker_state import change_entries, undo_entries
-from tracker_ui import MAY_BLOOM_CSS, calorie_summary, remaining_panel, brand_header, progress_scale
+from tracker_ui import MAY_BLOOM_CSS, calorie_summary, remaining_panel, brand_header, progress_scale, usage_instructions
 from student_notes import prepare_note
 
 
@@ -52,6 +52,8 @@ def render_demo():
             st.write('这周有持续记录，是很好的开始。先试着把饮料也记下来。')
         st.write('课程方案：前 12 周每周一次真人记录点评，其后 9 个月每月一次。')
     selected_day = st.date_input('📅 Date of Entry · 记录日期', today, key='demo_date')
+    with st.expander('使用提示 · How to use'):
+        st.markdown(usage_instructions(demo=True))
     days = st.session_state.setdefault('demo_days', {})
     draft = days.setdefault(str(selected_day), {'food_log': [], 'exercise_log': []})
     entries = draft['food_log']
@@ -67,7 +69,7 @@ def render_demo():
         st.markdown(remaining_panel(remaining, provisional=True), unsafe_allow_html=True)
         st.info(f'另有 {pending_count} 笔食物尚未计入；余额仅按已填记录暂估 · Provisional remaining')
     else:
-        st.markdown('<p class="mb-progress-title">Daily Energy Progress · 今日热量进度</p>', unsafe_allow_html=True)
+        st.markdown('<p class="mb-progress-title">今日热量 · Daily calories</p>', unsafe_allow_html=True)
         st.progress(max(0.0, min(1.0, (intake - burned) / target)))
         st.markdown(progress_scale(intake - burned, target), unsafe_allow_html=True)
         st.markdown(remaining_panel(remaining), unsafe_allow_html=True)
