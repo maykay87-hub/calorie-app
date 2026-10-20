@@ -19,6 +19,7 @@ from tracker_export import export_history_csv, export_draft
 from profile_storage import ACTIVITIES, load_profile, save_profile
 from nutrition_registry import SOURCE, SG_SOURCE, REFERENCE_RECORDS, reference_database, reference_portion, make_food_entry, format_energy
 from food_catalogue import ALL_FOODS, RECENT_FOODS, CATEGORIES, MEAL_LABELS, food_label, food_picker_label, filter_foods, remember_food
+from tracker_ui import MAY_BLOOM_CSS, calorie_summary, remaining_panel, brand_header, progress_scale
 
 # --- 1. APP CONFIGURATION ---
 st.set_page_config(page_title="May Bloom Advanced", page_icon="🌸", layout="wide")
@@ -28,6 +29,9 @@ if st.query_params.get("demo") == "1":
     from tracker_demo import render_demo
     render_demo()
     st.stop()
+
+# One presentation system also covers sign-in and the coach dashboard.
+st.markdown(MAY_BLOOM_CSS, unsafe_allow_html=True)
 
 # --- 2. GOOGLE SHEETS CONNECTION ---
 # This test branch requires an explicit spreadsheet ID; never fall back to the live database.
@@ -197,10 +201,10 @@ def check_password():
     if st.session_state["logged_in"]:
         return True
 
-    st.markdown("<h1 style='text-align: center; color: #9B3E59;'>🌸 May Bloom Login</h1>", unsafe_allow_html=True)
     col1, col2, col3 = st.columns([1,2,1])
     with col2:
-        st.info("请使用老师提供的账号登入 · Sign in with the account provided by your coach.")
+        st.markdown(brand_header(), unsafe_allow_html=True)
+        st.markdown('<h2 class="mb-section-title">学员登入 <small>Student login</small></h2>', unsafe_allow_html=True)
         with st.form("login_form"):
             username = st.text_input("账号 · Username", key="login_user")
             password = st.text_input("密码 · Password", type="password", key="login_pass")
@@ -215,7 +219,7 @@ def check_password():
                 st.rerun()
             else:
                 st.error("账号或密码不正确，请重新输入。 Incorrect username or password; please retry.")
-        st.caption("账号由老师提供。如忘记密码，请联系老师。 Accounts are provided by your coach; contact your coach if you forget your password.")
+        st.caption("使用老师提供的账号；忘记密码请联系老师。 Use your coach-provided account; contact your coach for password help.")
     return False
 
 if not check_password():
@@ -331,12 +335,8 @@ if st.session_state["username"] == "admin":
 # PART 5: REGULAR CLIENT APP
 # ==========================================
 
-# --- MAY BLOOM PRESENTATION ---
-from tracker_ui import MAY_BLOOM_CSS, calorie_summary, remaining_panel
-st.markdown(MAY_BLOOM_CSS, unsafe_allow_html=True)
-
 # --- DAILY DRAFT ---
-st.markdown('<h1 class="mb-title"><span>🌸 May Bloom</span> Lifestyle Tracker</h1>', unsafe_allow_html=True)
+st.markdown(brand_header(), unsafe_allow_html=True)
 # Reviews belong to the signed-in account, independent of the selected log date.
 try:
     reviews = load_feedback(get_sheet_connection("feedback"), st.session_state["username"])
@@ -547,6 +547,7 @@ if incomplete_energy:
 elif daily_needs is not None:
     st.markdown('<div class="mb-progress-title">Daily Energy Progress · 今日热量进度</div>', unsafe_allow_html=True)
     st.progress(min(max(net_calories / daily_needs, 0.0), 1.0))
+    st.markdown(progress_scale(net_calories, daily_needs), unsafe_allow_html=True)
     st.markdown(remaining_panel(remaining), unsafe_allow_html=True)
 else:
     st.info("填写并保存左侧个人资料，即可显示每日热量目标。 Save your profile to see your daily target.")

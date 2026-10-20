@@ -7,7 +7,7 @@ from food_catalogue import food_picker_label, filter_foods, MEAL_LABELS
 from nutrition_registry import reference_database, make_food_entry
 from profile_storage import ACTIVITIES, validate_profile
 from tracker_state import change_entries, undo_entries
-from tracker_ui import MAY_BLOOM_CSS, calorie_summary, remaining_panel
+from tracker_ui import MAY_BLOOM_CSS, calorie_summary, remaining_panel, brand_header, progress_scale
 from student_notes import prepare_note
 
 
@@ -17,7 +17,7 @@ def _open_day(day):
 
 def render_demo():
     st.markdown(MAY_BLOOM_CSS, unsafe_allow_html=True)
-    st.markdown('<h1 class="mb-title"><span>🌸 May Bloom</span> Lifestyle Tracker</h1>', unsafe_allow_html=True)
+    st.markdown(brand_header(), unsafe_allow_html=True)
     st.info('公开体验 · Demo — 示范资料仅留在本次页面，不会进入学员账号。')
     if st.session_state.pop('demo_save_notice', False):
         st.success('演示记录已保存到本次页面，可到 Wellness History 回看；不写入云端。')
@@ -69,6 +69,7 @@ def render_demo():
     else:
         st.markdown('<p class="mb-progress-title">Daily Energy Progress · 今日热量进度</p>', unsafe_allow_html=True)
         st.progress(max(0.0, min(1.0, (intake - burned) / target)))
+        st.markdown(progress_scale(intake - burned, target), unsafe_allow_html=True)
         st.markdown(remaining_panel(remaining), unsafe_allow_html=True)
     database = reference_database()
     foods = filter_foods(database)
