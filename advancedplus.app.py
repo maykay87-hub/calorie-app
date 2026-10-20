@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import gspread
 import logging
+import os
 from oauth2client.service_account import ServiceAccountCredentials
 from datetime import date, datetime
 from zoneinfo import ZoneInfo
@@ -20,6 +21,7 @@ from profile_storage import ACTIVITIES, load_profile, save_profile
 from nutrition_registry import SOURCE, SG_SOURCE, REFERENCE_RECORDS, reference_database, reference_portion, make_food_entry, format_energy
 from food_catalogue import ALL_FOODS, RECENT_FOODS, CATEGORIES, MEAL_LABELS, food_label, food_picker_label, filter_foods, remember_food
 from tracker_ui import MAY_BLOOM_CSS, calorie_summary, remaining_panel, brand_header, progress_scale, usage_instructions
+from deployment_config import resolve_spreadsheet_id
 
 # --- 1. APP CONFIGURATION ---
 st.set_page_config(page_title="May Bloom Advanced", page_icon="🌸", layout="wide")
@@ -34,8 +36,14 @@ if st.query_params.get("demo") == "1":
 st.markdown(MAY_BLOOM_CSS, unsafe_allow_html=True)
 
 # --- 2. GOOGLE SHEETS CONNECTION ---
-# This test branch requires an explicit spreadsheet ID; never fall back to the live database.
-SPREADSHEET_ID = st.secrets["spreadsheet_id"]
+environment = os.environ.get('MAY_BLOOM_DEPLOYMENT', 'production')
+if environment == 'staging':
+    st.warning('开发测试环境 · Staging — 仅使用测试账号与测试资料。')
+try:
+    SPREADSHEET_ID = resolve_spreadsheet_id(st.secrets, environment)
+except (ValueError, FileNotFoundError) as exc:
+    st.error(str(exc))
+    st.stop()
 
 def get_sheet_connection(type="main", create=False):
     """

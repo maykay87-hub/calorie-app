@@ -16,7 +16,10 @@
 - The progress title is shortened to "今日热量 · Daily calories" in both views.
 - Verification: all 147 tests pass in 48.687 seconds, no failures or skips;
   shared CSS lint 0 FAIL/0 WARN. New text/surface pairs measure 6.09:1 or higher.
-  Live deployment verification is recorded separately after the branch updates.
+  Live demo confirmed: the guide opens; positive balance is pale yellow,
+  exact zero is neutral with "At target", and 120 kcal over is soft orange.
+  Undo restored the positive balance. All checks used public demo session data.
+  A final guide punctuation fix was followed by all 9 UI/demo tests passing.
 
 ## Brief and method
 

@@ -26,11 +26,11 @@ def progress_scale(net, target):
 def usage_instructions(demo=False):
     """Use the same compact guide in the demo and the signed-in tracker."""
     save_label = '体验保存 Try save' if demo else '保存当天记录 Save'
-    return ('1. **饮食 Food Log：**选日期、餐次、食物与份数 → **Add Meal**。\n'
-            '2. **运动 Exercise Log：**选运动、填分钟 → **Add activity**。\n'
+    return ('1. **饮食 Food Log**：选日期、餐次、食物与份数 → **Add Meal**。\n'
+            '2. **运动 Exercise Log**：选运动、填分钟 → **Add activity**。\n'
             f'3. 记录后按 **{save_label}**。\n'
-            '4. **Wellness History：**回看记录，或打开某天继续修改。\n\n'
-            '**今日剩余 = 今日目标 − 饮食摄入 + 运动消耗。**高于目标表示当日净值超过当前目标。\n\n'
+            '4. **Wellness History**：回看记录，或打开某天继续修改。\n\n'
+            '今日剩余 = 今日目标 − 饮食摄入 + 运动消耗。高于目标表示当日净值超过当前目标。\n\n'
             '找不到食物时，可写备注或附上文件；未计入热量时，余额会注明「暂估」。')
 
 
