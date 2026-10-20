@@ -27,7 +27,14 @@ separation is a release process, not server-enforced GitHub branch protection.
   copied into it. The deployed guard was observed stopping before database
   access; its independent demo successfully added a 300 kcal meal and showed
   1,200 kcal remaining. Test database configuration is still pending.
-- Database backup has not been verified; do not mark paid launch complete yet.
+- Both existing workbooks have independent owner-only backup copies. All
+  populated cells in the existing five V2 tabs and two legacy tabs were
+  compared with their copies and matched. Private backup locations are kept
+  outside this repository. The owner confirmed the student app's configured
+  database is the workbook titled `wellness_database_v2_test`; preserve that
+  connection and do not treat this active workbook as disposable testing data.
+- Website and course entry checks remain outstanding; this database backup
+  verification alone does not mark the whole paid launch complete.
 - Website is maintained/published in the existing Google AI Studio project;
   Cloudflare manages its domain. No domain or hosting migration is required.
 
@@ -38,10 +45,11 @@ Keep it private. Use synthetic student accounts and synthetic records only.
 Do not reuse the production account credential list.
 
 The cloud instance above has already been created; do not create another one.
-Two existing spreadsheet names have been reported by the owner:
-`wellness_database` and `wellness database V2 test`. Their deployment mapping
-has not been verified. Do not assume a file is unused because its title says
-"test", and do not switch the student deployment to another workbook blindly.
+The student app actively uses `wellness_database_v2_test`, as confirmed by
+the owner reading its settings. `wellness_database` is a separate legacy
+workbook. Do not assume a file is unused because its title says "test", and do
+not switch the student deployment to another workbook blindly. The new
+private development app must use another independent synthetic-data workbook.
 
 Set these in that test app's Secrets (never commit actual values):
 
@@ -63,8 +71,11 @@ Suggested name: `wellness_database_backup_2026-10-20`. Keep existing access
 restricted. Confirm all original tabs, headers and non-empty record counts are
 present in the copy, including attachments, reviews and profiles.
 Record the copy URL and time privately; do not put them in this repository.
-The connected Drive service could not locate the known database at preparation
-time, so this document does not claim a backup was made or validated.
+The connected Drive service initially lacked access. After the owner shared
+both workbooks, their backup copies were created and validated as described
+above. Backup permissions were checked as owner-only. This verifies saved
+spreadsheet content; a full isolated restoration rehearsal remains a separate
+operation.
 
 Before a future release, keep a new backup and a tested compatibility plan for
 any schema change. Validate with the staging database before publishing code.
