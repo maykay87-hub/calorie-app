@@ -21,7 +21,12 @@ separation is a release process, not server-enforced GitHub branch protection.
 - Development isolation plus existing application checks: all 154 tests passed
   in 50.089 seconds, no failures or skips. The guard stops unconfigured staging
   before Google access; the staging demo remains independent of Google.
-- A new cloud staging instance has not yet been deployed or configured.
+- A separate cloud test app is deployed at https://may-bloom-lab.streamlit.app/,
+  using `development/next` and `staging.app.py`. Sharing is set to "Only
+  specific people can view this app". No database or account credentials were
+  copied into it. The deployed guard was observed stopping before database
+  access; its independent demo successfully added a 300 kcal meal and showed
+  1,200 kcal remaining. Test database configuration is still pending.
 - Database backup has not been verified; do not mark paid launch complete yet.
 - Website is maintained/published in the existing Google AI Studio project;
   Cloudflare manages its domain. No domain or hosting migration is required.
@@ -31,6 +36,12 @@ separation is a release process, not server-enforced GitHub branch protection.
 Create a separate Streamlit app using `development/next` and `staging.app.py`.
 Keep it private. Use synthetic student accounts and synthetic records only.
 Do not reuse the production account credential list.
+
+The cloud instance above has already been created; do not create another one.
+Two existing spreadsheet names have been reported by the owner:
+`wellness_database` and `wellness database V2 test`. Their deployment mapping
+has not been verified. Do not assume a file is unused because its title says
+"test", and do not switch the student deployment to another workbook blindly.
 
 Set these in that test app's Secrets (never commit actual values):
 
@@ -82,3 +93,6 @@ The Baya course has not been edited or its live link validated in this preparati
 The checked local runtime used Streamlit 1.66.0, pandas 2.2.3, gspread 6.2.1,
 oauth2client 4.1.3. This records the tested environment; it does not change the
 current live installation or claim a full dependency lock is already deployed.
+The newly deployed test app reported Python 3.14.8, Streamlit 1.66.0,
+pandas 3.0.6 and gspread 6.2.1 in its build log. Its demo smoke check succeeded;
+this is not a claim that database flows were tested on that cloud environment.
