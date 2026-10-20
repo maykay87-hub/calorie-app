@@ -108,3 +108,19 @@ An in-conversation, interactive before/proposed comparison uses illustrative
 session data. It is a design demonstration, not a screenshot or proof of live
 deployment. The 38 upstream files were rechecked by Git blob hash: none missing
 or modified; LICENSE and UPSTREAM.md are the two project installation additions.
+
+## Post-reboot desktop observation (2026-10-20)
+
+The actual public demo now displays the drawn bloom, pink wordmark, teal profile
+Save button, shared form styles, progress endpoint labels and larger Remaining.
+Screenshot: may-bloom-taste-live-after.jpg. This is the running application,
+not the comparison mockup. Add Meal produced food/net 300 and Remaining 1200
+against the sample target 1500. Yoga produced burn 100, net 200 and Remaining
+1300; undo returned burn to 0 and Remaining to 1200 while Exercise stayed active.
+The actual phone and full three-viewport inspector pass remain unverified.
+
+Website entry component is prepared in website-integration/; it has not been
+installed on maybloomwellness.com. Connected GitHub search returns only calorie-app,
+and no matching hosted Sites project exists. Website editing requires the original
+AI Studio/Cloudflare source project; the existing website must not be replaced by
+an unrelated new site. Opening the website in the current cloud browser timed out.
