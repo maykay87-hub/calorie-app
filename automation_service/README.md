@@ -64,3 +64,9 @@ Primary implementation references: https://docs.stripe.com/checkout/fulfillment 
 ## May’s availability screen
 
 Set `MB_COACH_EMAIL` to the verified owner mailbox. At the member portal, request an activation email using that address and set a password through the delivered link. This verified owner can publish and close available consultation slots, inspect bookings and see follow-up issues without purchasing a plan or exposing admin API keys. A working mail sender and email worker are required. Enter times in Malaysia time. Published slots protect availability within this service only; outside calendar conflicts must still be checked.
+
+## Deployment check before connecting services
+
+Run `python -m automation_service.preflight` inside the configured server environment. It reads environment variables, prints only field names and fixed diagnostic reasons, exits with code 2 for invalid setup, and never calls Stripe, SMTP or PostgreSQL. A passing result confirms configuration shape only; it does not replace the buyer-journey tests. Use the installed `psycopg` driver explicitly in `MB_DATABASE_URL`: `postgresql+psycopg://...`.
+
+For a Google Cloud deployment, follow [the Cloud Run connection guide](../docs/member-service-cloud-run.md). Hosting has not been created and no billing or access permissions have been changed.
