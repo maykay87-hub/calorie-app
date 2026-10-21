@@ -22,6 +22,10 @@ from nutrition_registry import SOURCE, SG_SOURCE, REFERENCE_RECORDS, reference_d
 from food_catalogue import ALL_FOODS, RECENT_FOODS, CATEGORIES, MEAL_LABELS, food_label, food_picker_label, filter_foods, remember_food
 from tracker_ui import MAY_BLOOM_CSS, calorie_summary, remaining_panel, brand_header, progress_scale, usage_instructions
 from deployment_config import resolve_spreadsheet_id
+from member_access import (config as membership_config, login as member_login,
+                           verify as verify_membership, roster as member_roster,
+                           link_legacy as link_legacy_member, legacy_login, roster_with_labels,
+                           MembershipUnavailable, MembershipDenied)
 
 # --- 1. APP CONFIGURATION ---
 st.set_page_config(page_title="May Bloom Advanced", page_icon="🌸", layout="wide")
@@ -207,6 +211,27 @@ def check_password():
         st.session_state["logged_in"] = False
 
     if st.session_state["logged_in"]:
+        if st.session_state.get('membership_token'):
+            try:
+                options = membership_config(st.secrets)
+                if not options:
+                    raise MembershipUnavailable('Membership service is not enabled.')
+                checked = st.session_state.get('membership_checked', 0)
+                ends = st.session_state.get('membership_ends_at', 0)
+                if monotonic() - checked >= 60 or ends <= datetime.now().timestamp():
+                    member = verify_membership(options, st.session_state['membership_token'], st.session_state['username'])
+                    st.session_state['membership_checked'] = monotonic()
+                    st.session_state['membership_ends_at'] = member['ends_at']
+                    st.session_state['membership_display_name'] = member.get('display_name', member['username'])
+            except (MembershipUnavailable, MembershipDenied):
+                st.warning('暂时无法确认使用权限，请重试或在会员页面查看订阅。已保存记录仍保留。 Access could not be confirmed; retry or check your membership. Saved records are retained.')
+                if st.button('重试权限验证 · Retry access'):
+                    st.session_state['membership_checked'] = 0
+                    st.rerun()
+                if st.button('退出并重新登入 · Sign out'):
+                    logout(st.session_state)
+                    st.rerun()
+                return False
         return True
 
     col1, col2, col3 = st.columns([1,2,1])
@@ -220,14 +245,49 @@ def check_password():
         if submitted:
             username = username.strip()
             if username in st.secrets["passwords"] and password == st.secrets["passwords"][username]:
+                if username != 'admin':
+                    try:
+                        options = membership_config(st.secrets)
+                        member = legacy_login(options, username) if options else None
+                        if member:
+                            st.session_state['membership_token'] = member['token']
+                            st.session_state['membership_ends_at'] = member['ends_at']
+                            st.session_state['membership_checked'] = monotonic()
+                            st.session_state['membership_display_name'] = member.get('display_name', username)
+                    except (MembershipDenied, MembershipUnavailable):
+                        st.error('暂时无法确认使用权限，请重试或查看会员状态。 Could not confirm membership access.')
+                        return False
                 st.session_state["logged_in"] = True
                 st.session_state["username"] = username
                 st.session_state.pop("login_pass", None)
                 st.session_state.pop("login_user", None)
                 st.rerun()
             else:
-                st.error("账号或密码不正确，请重新输入。 Incorrect username or password; please retry.")
-        st.caption("使用老师提供的账号；忘记密码请联系老师。 Use your coach-provided account; contact your coach for password help.")
+                try:
+                    options = membership_config(st.secrets)
+                    if not options:
+                        raise MembershipDenied('Managed accounts are disabled.')
+                    member = member_login(options, username, password)
+                    st.session_state['logged_in'] = True
+                    st.session_state['username'] = member['username']
+                    st.session_state['membership_token'] = member['token']
+                    st.session_state['membership_ends_at'] = member['ends_at']
+                    st.session_state['membership_checked'] = monotonic()
+                    st.session_state['membership_display_name'] = member.get('display_name', member['username'])
+                    st.session_state.pop('login_pass', None)
+                    st.session_state.pop('login_user', None)
+                    st.rerun()
+                except MembershipDenied:
+                    if not options:
+                        st.error('账号或密码不正确，请重新输入。 Incorrect username or password; please retry.')
+                    else:
+                        st.error('账号、密码或使用权限无法确认，请检查后重试。 Check your account, password and membership access.')
+                except MembershipUnavailable:
+                    st.error('暂时无法连接会员服务，请稍后重试。 Membership service is temporarily unavailable.')
+        if st.secrets.get('membership_service', {}).get('enabled') is True:
+            st.caption('原有学员使用老师提供的账号；自动开通的学员使用付款邮箱。 Existing students: use your coach-provided username. Activated members: use your payment email.')
+        else:
+            st.caption('使用老师提供的账号；忘记密码请联系老师。 Use your coach-provided account; contact your coach for password help.')
     return False
 
 if not check_password():
@@ -237,6 +297,20 @@ if not check_password():
 # PART 4: ADMIN DASHBOARD
 # ==========================================
 if st.session_state["username"] == "admin":
+    managed_users = []
+    managed_labels = {}
+    try:
+        options = membership_config(st.secrets)
+        if options:
+            roster_cache = st.session_state.get('membership_roster_cache', {})
+            if monotonic() - roster_cache.get('time', 0) >= 60:
+                roster_users, roster_labels = roster_with_labels(options)
+                roster_cache = {'time': monotonic(), 'users': roster_users, 'labels': roster_labels}
+                st.session_state['membership_roster_cache'] = roster_cache
+            managed_users = roster_cache.get('users', [])
+            managed_labels = roster_cache.get('labels', {})
+    except MembershipUnavailable:
+        st.warning('自动开通的学员名单暂不可用；原有名单仍可查看。 Managed student list is unavailable; existing students remain available.')
     
     # --- ADMIN SIDEBAR START ---
     with st.sidebar:
@@ -262,8 +336,8 @@ if st.session_state["username"] == "admin":
             col3.metric("最新日期 · Latest date", max(row["Date"] for row in records))
             # A student may submit only remarks/files before logging any calories.
             # Keep those accounts selectable alongside students with daily logs.
-            selectable_users = sorted(set(users) | (set(st.secrets["passwords"].keys()) - {"admin"}))
-            chosen_user = st.selectbox("查看学生 · Student", selectable_users, key="coach_student")
+            selectable_users = sorted(set(users) | set(managed_users) | (set(st.secrets["passwords"].keys()) - {"admin"}))
+            chosen_user = st.selectbox("查看学生 · Student", selectable_users, key="coach_student", format_func=lambda u: managed_labels.get(u, u))
             student_records = [row for row in records if row["username"] == chosen_user]
             try:
                 coach_notes = load_notes(get_sheet_connection('student_notes'), chosen_user)
@@ -297,16 +371,16 @@ if st.session_state["username"] == "admin":
         st.error("暂时无法读取学生记录，请稍后重试。 Could not load student records; please retry.")
 
     # Human reviews are posted only by the signed-in coach.
-    review_users = sorted(set(st.secrets["passwords"].keys()) - {"admin"})
+    review_users = sorted((set(st.secrets["passwords"].keys()) | set(managed_users)) - {"admin"})
     if review_users:
         if "coach_student" in st.session_state:
             review_user = st.session_state["coach_student"]
         else:
-            review_user = st.selectbox("查看学生 · Student", review_users, key="coach_student")
+            review_user = st.selectbox("查看学生 · Student", review_users, key="coach_student", format_func=lambda u: managed_labels.get(u, u))
         st.subheader("学员补充记录 · Student remarks")
         render_note_history(get_sheet_connection, review_user, prefix="coach_notes")
         st.subheader("💌 发布个别反馈 · Dietitian review")
-        st.write(f"接收学员 · Recipient: {review_user}")
+        st.write(f"接收学员 · Recipient: {managed_labels.get(review_user, review_user)}")
         with st.form(f"coach_review_{review_user}"):
             kind = st.radio("点评周期 · Review type", ["每周 Weekly", "每月 Monthly"], horizontal=True)
             period_day = st.date_input("选择点评所属周／月 · Review period", datetime.now(ZoneInfo("Asia/Kuala_Lumpur")).date())
@@ -485,7 +559,30 @@ exercise_database = {
 # --- SIDEBAR (UPDATED) ---
 with st.sidebar:
     st.markdown('<div class="mb-profile-kicker">MY PROFILE · 个人资料</div>', unsafe_allow_html=True)
-    st.header(f"👤 {st.session_state['username'].title()}")
+    st.header(f"👤 {st.session_state.get('membership_display_name', st.session_state['username']).title()}")
+    if not st.session_state.get('membership_token'):
+        try:
+            member_options = membership_config(st.secrets)
+        except MembershipUnavailable:
+            member_options = None
+        if member_options and st.secrets.get('membership_service', {}).get('legacy_link_enabled') is True:
+            with st.expander('关联已购买的会员 · Link membership'):
+                st.caption('先在开通邮件设置会员密码，再把会员关联至当前账号；原记录保留。 Set your member password first, then link it to this existing account.')
+                with st.form('link_membership'):
+                    member_email = st.text_input('付款邮箱 · Payment email', key='member_email')
+                    member_password = st.text_input('会员密码 · Member password', type='password', key='member_password')
+                    member_submit = st.form_submit_button('关联当前账号 · Link this account')
+                if member_submit:
+                    try:
+                        member = link_legacy_member(member_options, member_email, member_password, st.session_state['username'])
+                        st.session_state['membership_token'] = member['token']
+                        st.session_state['membership_ends_at'] = member['ends_at']
+                        st.session_state['membership_checked'] = monotonic()
+                        st.session_state['membership_display_name'] = member.get('display_name', st.session_state['username'])
+                        st.session_state.pop('member_password', None)
+                        st.rerun()
+                    except (MembershipDenied, MembershipUnavailable):
+                        st.error('未能确认关联，请检查会员资料或联系 May；原记录未更改。 Link could not be confirmed; existing records are unchanged.')
     
     st.divider()
     
