@@ -14,6 +14,7 @@ from .stripe_gateway import StripeGateway
 from .mail import MailSender
 from .jobs import JobDispatcher
 from .security import digest
+from .renewals import RenewalService
 
 class Credentials(BaseModel):
     model_config=ConfigDict(extra='forbid')
@@ -33,11 +34,15 @@ class LegacyLink(BaseModel):
     password: str=Field(max_length=128)
     username: str=Field(min_length=1,max_length=100)
 class LegacyLogin(BaseModel): username: str=Field(min_length=1,max_length=100)
+class RenewalConsent(BaseModel):
+    model_config=ConfigDict(extra='forbid', strict=True)
+    agreed: bool
 
 def create_app(settings=None,store=None,gateway=None,sender=None,clock=None,job_dispatcher=None):
     settings=settings or Settings.from_env()
     service=Service(store or Store(settings.database_url),settings,**({'clock':clock} if clock else {}))
     gateway=gateway or StripeGateway(settings)
+    renewal_service=RenewalService(service,gateway)
     sender=sender or MailSender(settings)
     job_dispatcher=job_dispatcher or JobDispatcher(settings)
     app=FastAPI(title='May Bloom member services',docs_url=None,redoc_url=None,openapi_url=None)
@@ -106,6 +111,13 @@ def create_app(settings=None,store=None,gateway=None,sender=None,clock=None,job_
     def me(request:Request): return service.me(session(request))
     @app.get('/api/slots')
     def available(request:Request): return {'slots':service.available_slots(session(request))}
+    @app.get('/api/renewal')
+    def renewal_status(request:Request): return renewal_service.status(session(request))
+    @app.post('/api/renewal')
+    def renewal_checkout(body:RenewalConsent,request:Request):
+        try: return renewal_service.checkout(session(request),body.agreed)
+        except (RuleError,ValueError): raise
+        except Exception: raise HTTPException(503,'续用付款暂时无法开启，请稍后重试。 Renewal checkout temporarily unavailable.')
     @app.post('/api/book')
     def book(body:BookingInput,request:Request):
         booking_id=service.book(session(request),body.slot_id,body.request_id)

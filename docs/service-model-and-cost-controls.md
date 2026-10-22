@@ -83,3 +83,11 @@ Calendar 冲突同步、自动会议链接、自动改期／取消仍未实现�
 - https://cloud.google.com/scheduler/pricing
 - https://docs.cloud.google.com/tasks/docs/creating-http-target-tasks
 - https://docs.cloud.google.com/run/docs/configuring/billing-settings
+
+## 本轮实施更新
+
+旧学员续用已新增服务端资格检查、剩余权益保护、Stripe 重复订阅检查、固定价格与数量、明确月订阅同意、并发／重试共用结账预约。功能开关默认关闭，仍需真实 Stripe 测试、独立 PostgreSQL 并发与恢复验收，再停用公开月费购买链接后启用；原已付订阅不取消。课程订单接入仍未完成。
+
+新增表 mb_renewal_checkouts，不改写原账号与权益。数据库连接与部署仍未执行：Neon 安装已确认，但当前可调用列表没有其数据库操作；Google Cloud 控制台重试后仍无法访问。不能声称已建库或已上线。
+
+成本补充：2026-10-22 Baya 账号 Workspace 页面显示 Payment Processing Fee 2%，选中由卖家承担。没有更改该设置；实际账单与收款明细为准。课程不应重复计算 Stripe 手续费。

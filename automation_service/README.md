@@ -92,3 +92,32 @@ the original five-minute scheduler-only instructions above. Without wakeups, mai
 can wait for the next sweep; that is not instant activation. Frequent empty polls
 can exhaust a sleeping database's free compute allowance even with no buyers.
 No Cloud Tasks queue, sender or free database has been configured yet.
+
+## Returning-student continuation — development only
+
+MB_RENEWAL_ENABLED defaults to false. When deliberately enabled in staging,
+/api/renewal requires an authenticated verified member, non-revoked paid history
+and no remaining/future/unstarted paid access. Explicit monthly-subscription
+consent is required. The server checks all matching Stripe customer identities
+for active, trialing, past-due, unpaid, paused or incomplete subscriptions before
+creating one fixed-price, fixed-quantity Checkout Session. Retried/concurrent
+requests reuse a one-hour reservation and Stripe idempotency key. A redirect
+never creates access; only canonical paid-invoice fulfillment does.
+
+The new mb_renewal_checkouts table is additive; no existing record is rewritten.
+Before an actual student release, back up and verify this schema change on a
+dedicated PostgreSQL staging database, including concurrent requests and restore.
+SQLite compatibility tests are not evidence of production PostgreSQL validation.
+
+Before opening live continuation, retire the unrestricted public monthly Payment
+Link after reviewing existing subscribers, and verify their renewals continue.
+Do not reject already-paid legacy invoices or silently cancel subscriptions.
+Do not expose the private renewal form as a public sign-up product.
+Baya course entitlements still require verified order ingestion/import before
+they can qualify here; no course-order integration has been assumed or created.
+
+Real infrastructure access checkpoint: Neon installation is confirmed but its
+project/database operations are not exposed in the current tool list. No Neon
+project, plan, region or database has been inspected or created. Google Cloud
+console again returned Site Unavailable after one reload. Neither condition is
+evidence that the owner's own accounts are down. No cloud spending was enabled.

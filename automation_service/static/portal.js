@@ -20,6 +20,7 @@ async function member(){
   $('credits').textContent=String(me.credits);
   if(me.active)safeLink($('tracker-link'),me.tracker_url,['maybloom-lifestyle-tracker.streamlit.app','may-bloom-lab.streamlit.app']);else $('tracker-link').hidden=true;
   safeLink($('billing-link'),me.billing_portal_url,['billing.stripe.com']);
+  try{const renewal=await api('/api/renewal');$('renewal').hidden=!renewal.eligible;}catch{$('renewal').hidden=true;}
   $('appointments').replaceChildren();for(const appointment of me.appointments){const p=document.createElement('p');p.className='appointment';p.textContent=dateText(appointment.starts_at)+ (appointment.ends_at*1000<Date.now()?' · 已结束 / Past':' · 已预约 / Booked');$('appointments').append(p);}
   if(!me.appointments.length)$('appointments').textContent='暂无预约 · No appointments yet';
   $('slots').replaceChildren();
@@ -43,3 +44,5 @@ async function coachSummary(){
 }
 $('slot-form').addEventListener('submit',event=>{event.preventDefault();action(event.submitter,async()=>{const starts=new Date($('slot-time').value+':00+08:00').getTime()/1000;if(!Number.isFinite(starts))throw new Error('请选择日期与时间。 Select a date and time.');await api('/api/coach/slots',{starts_at:starts});$('slot-time').value='';await coachSummary();notice('已开放预约时段 · Availability published');});});
 if(!activationToken)member().catch(error=>{if(error.status!==401)notice('暂时无法读取服务状态，请稍后重试。 Service status is temporarily unavailable.');});
+
+$('renewal-form').addEventListener('submit',event=>{event.preventDefault();action(event.submitter,async()=>{if(!$('renewal-consent').checked)return;const result=await api('/api/renewal',{agreed:true});const target=new URL(result.url);if(target.protocol!=='https:'||target.hostname!=='checkout.stripe.com'||target.port||target.username||target.password)throw new Error('付款链接无法确认，请重试。 Unable to confirm checkout.');location.assign(target.href);});});

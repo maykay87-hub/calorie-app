@@ -38,6 +38,7 @@ class Settings:
     package_start_policy: str = 'activation'
     booking_lead_seconds: int = 86400
     task_queue: str = ''
+    renewal_enabled: bool = False
 
     def validate(self):
         if self.task_queue and (not re.fullmatch(r'projects/[a-zA-Z0-9_-]+/locations/[a-z0-9-]+/queues/[a-zA-Z0-9_-]+', self.task_queue)
@@ -84,4 +85,5 @@ class Settings:
             coach_email=os.getenv('MB_COACH_EMAIL',''),
             booking_lead_seconds=int(os.getenv('MB_BOOKING_LEAD_SECONDS','86400')),
             task_queue=os.getenv('MB_TASK_QUEUE',''),
+            renewal_enabled=os.getenv('MB_RENEWAL_ENABLED') == 'true',
         )

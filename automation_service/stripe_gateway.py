@@ -2,6 +2,7 @@
 import time
 import stripe
 from .config import PLANS
+from .service import RuleError
 
 def object_id(value): return value.get('id') if isinstance(value,dict) else value
 def plain(value): return value if isinstance(value,dict) else value.to_dict()
@@ -86,3 +87,46 @@ class StripeGateway:
                 'email':(session.get('customer_details') or {}).get('email') or session.get('customer_email'),
                 'customer_id':object_id(session.get('customer')),
                 'payment_intent':object_id(session.get('payment_intent')),'paid_at':event_time}
+
+    def renewal_checkout(self, context):
+        prices = [p for p, plan in self.settings.price_plans.items() if plan == 'tracker-monthly']
+        if len(prices) != 1 or self._plan(prices[0]) != 'tracker-monthly':
+            raise ValueError('One approved monthly price is required.')
+        listed = plain(self.client.v1.customers.list({'email':context['email'], 'limit':100}))
+        if listed.get('has_more'):
+            raise RuleError('请联系 May 核对账号。 Account review required.',409)
+        identities = set(context['customer_ids']) | {v['id'] for v in listed.get('data',[])}
+        if len(identities) > 10:
+            raise RuleError('请联系 May 核对账号。 Account review required.',409)
+        for cid in sorted(identities):
+            customer = plain(self.client.v1.customers.retrieve(cid)); self._mode(customer)
+            if customer.get('deleted') or (customer.get('email') or '').strip().casefold() != context['email']:
+                raise RuleError('请联系 May 核对邮箱。 Email review required.',409)
+            subscriptions = plain(self.client.v1.subscriptions.list({'customer':cid, 'status':'all', 'limit':100}))
+            if subscriptions.get('has_more') or any(v.get('status') not in {'canceled','incomplete_expired'} for v in subscriptions.get('data',[])):
+                raise RuleError('已有订阅或待处理付款，请先查看账单。 Check your existing subscription or pending payment.',409)
+        if context.get('customer_id'):
+            if context['customer_id'] not in identities:
+                raise RuleError('请联系 May 核对账号。 Account review required.',409)
+            cid = context['customer_id']
+        elif identities:
+            cid = sorted(identities)[0]
+        else:
+            customer = plain(self.client.v1.customers.create({'email':context['email']},
+                options={'idempotency_key':'mb-renewal-customer-'+context['account_id']}))
+            self._mode(customer); cid = customer['id']
+        if context.get('checkout_id'):
+            session = plain(self.client.v1.checkout.sessions.retrieve(context['checkout_id']))
+        else:
+            session = plain(self.client.v1.checkout.sessions.create({
+                'mode':'subscription', 'customer':cid,
+                'line_items':[{'price':prices[0], 'quantity':1}],
+                'success_url':self.settings.public_url+'/?renewal=complete',
+                'cancel_url':self.settings.public_url+'/?renewal=cancelled',
+                'expires_at':context['expires_at'],
+            }, options={'idempotency_key':'mb-renewal-'+context['request_key']}))
+        self._mode(session)
+        if session.get('status') != 'open' or object_id(session.get('customer')) != cid:
+            raise RuleError('付款正在处理或链接已结束，请查看账单。 Check payment status before retrying.',409)
+        return {'id':session['id'], 'url':session.get('url'), 'customer_id':cid,
+                'expires_at':session.get('expires_at')}

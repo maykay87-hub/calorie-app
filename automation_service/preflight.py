@@ -19,7 +19,7 @@ def inspect_environment(env):
     for name in REQUIRED:
         if not env.get(name,'').strip(): fail(name,'missing')
     if env.get('MB_ENV')!='production': fail('MB_ENV','must_be_production_for_hosted_service')
-    for name in ('MB_STRIPE_LIVE','MB_RELEASE_REVIEWED','MB_BOOKING_ENABLED','MB_LEGACY_LINK_ENABLED'):
+    for name in ('MB_STRIPE_LIVE','MB_RELEASE_REVIEWED','MB_BOOKING_ENABLED','MB_LEGACY_LINK_ENABLED','MB_RENEWAL_ENABLED'):
         if env.get(name,'false') not in ('true','false'): fail(name,'must_be_true_or_false')
     live=env.get('MB_STRIPE_LIVE')=='true'
     if live and env.get('MB_RELEASE_REVIEWED')!='true': fail('MB_RELEASE_REVIEWED','live_release_not_reviewed')

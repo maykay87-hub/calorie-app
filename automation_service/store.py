@@ -43,6 +43,11 @@ limits = Table('mb_limits', meta, Column('key', String(64), primary_key=True),
     Column('window', Integer, nullable=False), Column('count', Integer, nullable=False))
 issues = Table('mb_issues', meta, Column('id', String(160), primary_key=True),
     Column('kind', String(100), nullable=False), Column('created_at', Integer, nullable=False))
+renewals = Table('mb_renewal_checkouts', meta,
+    Column('account_id', String(64), ForeignKey('mb_accounts.id'), primary_key=True),
+    Column('request_key', String(64), nullable=False), Column('created_at', Integer, nullable=False),
+    Column('expires_at', Integer, nullable=False), Column('checkout_id', String(160)), Column('customer_id', String(128)),
+    Column('checkout_url', Text))
 
 class Store:
     def __init__(self, url):
