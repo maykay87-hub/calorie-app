@@ -45,6 +45,8 @@ class Service:
             'subject':'May Bloom · 开通或恢复账号 / Activate your account',
             'body':f"请使用下方链接设置密码（1小时内有效）。已有账号可用此链接恢复密码。\nSet or reset your password using this link, valid for 1 hour.\n\n{self.settings.public_url}/#activate={token}\n\n如果你没有申请，可忽略此邮件。If you did not request this, ignore this email."})
 
+        return key
+
     def _account(self,c,email,customer_id=None):
         if customer_id:
             identity=one(c,customers,customers.c.id==customer_id)
@@ -77,7 +79,8 @@ class Service:
             account=one(c,accounts,accounts.c.email==email)
             coach=email==self.settings.coach_email.strip().casefold() and bool(self.settings.coach_email)
             if coach and not account: account=self._account(c,email)
-            if account and (coach or one(c,grants,grants.c.account_id==account['id'])): self._activation(c,account)
+            if account and (coach or one(c,grants,grants.c.account_id==account['id'])):
+                return self._activation(c,account)
 
     def activate(self,token,password):
         with self.store.write() as c:

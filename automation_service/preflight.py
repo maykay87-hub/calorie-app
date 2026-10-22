@@ -1,6 +1,7 @@
 """Offline deployment checks. Output contains field names only, never secret values."""
 import json
 import os
+import re
 from urllib.parse import urlsplit
 from cryptography.fernet import Fernet
 from sqlalchemy.engine import make_url
@@ -64,6 +65,8 @@ def inspect_environment(env):
             if not low<=int(env.get(name,default))<=high: raise ValueError()
         except ValueError: fail(name,'invalid_integer_range')
     if env.get('MB_PACKAGE_START','activation') not in ('activation','payment'): fail('MB_PACKAGE_START','invalid_start_policy')
+    if env.get('MB_TASK_QUEUE') and not re.fullmatch(r'projects/[a-zA-Z0-9_-]+/locations/[a-z0-9-]+/queues/[a-zA-Z0-9_-]+', env['MB_TASK_QUEUE']):
+        fail('MB_TASK_QUEUE','use_cloud_tasks_queue_resource_path')
     return {'configuration_valid':not problems,'mode':'live' if live else 'test',
             'problems':problems,'external_connections_checked':False,
             'note':'Offline configuration only. Stripe prices/webhook, PostgreSQL, SMTP inbox and scheduled delivery still require end-to-end verification.'}

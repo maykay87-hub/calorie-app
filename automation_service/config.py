@@ -2,6 +2,7 @@
 from dataclasses import dataclass, field
 import json
 import os
+import re
 from urllib.parse import urlparse
 
 PLANS = {
@@ -36,8 +37,12 @@ class Settings:
     coach_email: str = ''
     package_start_policy: str = 'activation'
     booking_lead_seconds: int = 86400
+    task_queue: str = ''
 
     def validate(self):
+        if self.task_queue and (not re.fullmatch(r'projects/[a-zA-Z0-9_-]+/locations/[a-z0-9-]+/queues/[a-zA-Z0-9_-]+', self.task_queue)
+                               or not self.public_url.startswith('https://')):
+            raise ValueError('Job dispatch requires a Cloud Tasks queue path and HTTPS service origin.')
         if any(len(v) < 32 for v in [self.admin_key, self.bridge_key, self.webhook_secret]):
             raise ValueError('Configure distinct strong server keys (at least 32 characters).')
         if len({self.admin_key,self.bridge_key,self.webhook_secret})!=3:
@@ -78,4 +83,5 @@ class Settings:
             mail_from=os.getenv('MB_MAIL_FROM',''), package_start_policy=os.getenv('MB_PACKAGE_START','activation'),
             coach_email=os.getenv('MB_COACH_EMAIL',''),
             booking_lead_seconds=int(os.getenv('MB_BOOKING_LEAD_SECONDS','86400')),
+            task_queue=os.getenv('MB_TASK_QUEUE',''),
         )

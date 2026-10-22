@@ -12,6 +12,8 @@ from .store import Store, events, one
 from .service import Service, RuleError
 from .stripe_gateway import StripeGateway
 from .mail import MailSender
+from .jobs import JobDispatcher
+from .security import digest
 
 class Credentials(BaseModel):
     model_config=ConfigDict(extra='forbid')
@@ -32,14 +34,23 @@ class LegacyLink(BaseModel):
     username: str=Field(min_length=1,max_length=100)
 class LegacyLogin(BaseModel): username: str=Field(min_length=1,max_length=100)
 
-def create_app(settings=None,store=None,gateway=None,sender=None,clock=None):
+def create_app(settings=None,store=None,gateway=None,sender=None,clock=None,job_dispatcher=None):
     settings=settings or Settings.from_env()
     service=Service(store or Store(settings.database_url),settings,**({'clock':clock} if clock else {}))
     gateway=gateway or StripeGateway(settings)
     sender=sender or MailSender(settings)
+    job_dispatcher=job_dispatcher or JobDispatcher(settings)
     app=FastAPI(title='May Bloom member services',docs_url=None,redoc_url=None,openapi_url=None)
     app.state.service=service
     static=Path(__file__).with_name('static')
+
+    def dispatch_jobs(event_key):
+        try:
+            job_dispatcher.enqueue(event_key)
+        except Exception:
+            # A queue outage must not roll back a paid entitlement or booking.
+            # The durable outbox and scheduled sweep can recover pending mail.
+            service.flag('jobs:'+digest(event_key), 'job_dispatch_failed')
 
     @app.exception_handler(RuleError)
     async def rule_error(_,exc): return JSONResponse({'error':exc.message},status_code=exc.status)
@@ -81,7 +92,8 @@ def create_app(settings=None,store=None,gateway=None,sender=None,clock=None):
 
     @app.post('/api/request-activation')
     def activation_request(body:EmailInput):
-        service.request_activation(body.email)
+        queued=service.request_activation(body.email)
+        if queued: dispatch_jobs(queued)
         return {'ok':True,'message':'如有符合条件的账号，开通邮件将发送至该邮箱。 If eligible, an activation email will be sent.'}
     @app.post('/api/activate')
     def activate(body:Activation): return auth_response(service.activate(body.token,body.password))
@@ -96,7 +108,9 @@ def create_app(settings=None,store=None,gateway=None,sender=None,clock=None):
     def available(request:Request): return {'slots':service.available_slots(session(request))}
     @app.post('/api/book')
     def book(body:BookingInput,request:Request):
-        return {'ok':True,'booking_id':service.book(session(request),body.slot_id,body.request_id)}
+        booking_id=service.book(session(request),body.slot_id,body.request_id)
+        dispatch_jobs('booking:'+booking_id)
+        return {'ok':True,'booking_id':booking_id}
 
     @app.post('/bridge/login')
     def bridge_login(body:Credentials,request:Request):
@@ -132,7 +146,9 @@ def create_app(settings=None,store=None,gateway=None,sender=None,clock=None):
         try: event=stripe.Webhook.construct_event(bytes(raw),request.headers.get('stripe-signature',''),settings.webhook_secret).to_dict()
         except (ValueError,stripe.SignatureVerificationError): raise HTTPException(400,'Invalid webhook signature')
         if event.get('livemode') is not settings.live: raise HTTPException(400,'Stripe environment mismatch')
-        return await run_in_threadpool(reconcile,event)
+        result=await run_in_threadpool(reconcile,event)
+        await run_in_threadpool(dispatch_jobs,'stripe:'+event['id'])
+        return result
 
     def reconcile(event):
         kind=event['type']; eid=event['id']; obj=event['data']['object']; at=event['created']

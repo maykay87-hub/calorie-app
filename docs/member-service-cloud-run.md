@@ -28,3 +28,11 @@ Official references:
 - https://docs.cloud.google.com/run/docs/configuring
 - https://docs.cloud.google.com/run/docs/configuring/services/secrets
 - https://docs.cloud.google.com/run/docs/triggering/using-scheduler
+
+## Cost-conscious alternative
+
+The optional event dispatcher is implemented but not provisioned. Follow the
+service README and service-model-and-cost-controls.md before using a 30-minute
+recovery sweep in place of the original five-minute baseline. The latter is not
+a free-tier cost guarantee. Test queue permissions, runtime default credentials,
+worker authentication and real delivery first; no unawaited post-response SMTP.

@@ -70,3 +70,25 @@ Set `MB_COACH_EMAIL` to the verified owner mailbox. At the member portal, reques
 Run `python -m automation_service.preflight` inside the configured server environment. It reads environment variables, prints only field names and fixed diagnostic reasons, exits with code 2 for invalid setup, and never calls Stripe, SMTP or PostgreSQL. A passing result confirms configuration shape only; it does not replace the buyer-journey tests. Use the installed `psycopg` driver explicitly in `MB_DATABASE_URL`: `postgresql+psycopg://...`.
 
 For a Google Cloud deployment, follow [the Cloud Run connection guide](../docs/member-service-cloud-run.md). Hosting has not been created and no billing or access permissions have been changed.
+
+## Low-cost event-driven option — not deployed
+
+See [service model and cost controls](../docs/service-model-and-cost-controls.md).
+Set MB_TASK_QUEUE to an already-provisioned dedicated Cloud Tasks resource path
+only after runtime enqueue permissions, worker authentication, real mail delivery
+and quota checks pass. Blank (default) makes no Google credential/API calls.
+This code does not create queues or grant IAM permissions.
+
+The optional dispatcher wakes /admin/run-jobs after committed payments, queued
+activation/reset messages and successful bookings. SMTP stays outside the Stripe
+webhook. Queue failures preserve the outbox and flag an operator issue. Stable
+hashed task names handle event replay; task inspection must be restricted because
+request headers contain the private worker credential. Configure worker timeout
+to at least 600 seconds and review email batch size, queue concurrency, retries
+and sender limits before launch. Do not log task headers or full request objects.
+
+Once actual event wakeups pass, use a 30-minute recovery/reminder sweep instead of
+the original five-minute scheduler-only instructions above. Without wakeups, mail
+can wait for the next sweep; that is not instant activation. Frequent empty polls
+can exhaust a sleeping database's free compute allowance even with no buyers.
+No Cloud Tasks queue, sender or free database has been configured yet.

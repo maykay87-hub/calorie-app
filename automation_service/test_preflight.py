@@ -31,3 +31,9 @@ def test_wrong_modes_bad_mapping_and_secret_redaction():
 def test_wrong_database_driver_caught_before_runtime_connect():
     env=configured();env['MB_DATABASE_URL']='postgresql://member:secret@db.invalid/test'
     assert any(p['field']=='MB_DATABASE_URL' for p in inspect_environment(env)['problems'])
+
+def test_invalid_optional_task_queue_is_reported_without_echoing_value():
+    env=configured();env['MB_TASK_QUEUE']='https://private-diagnostic.invalid/path'
+    result=inspect_environment(env)
+    assert any(p['field']=='MB_TASK_QUEUE' for p in result['problems'])
+    assert 'private-diagnostic' not in json.dumps(result)
