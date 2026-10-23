@@ -51,6 +51,22 @@ class AppFlowTests(unittest.TestCase):
     def number(self, prefix):
         return next(x for x in self.at.number_input if x.label.startswith(prefix))
 
+    def test_exchange_meal_components_save_with_original_values(self):
+        self.at.session_state['food_entry_mode'] = '自己搭配 · Build a meal'
+        self.at.run()
+        for key in ['Rice (1/2 cup)',
+                    'Chicken Wing Meat (30 g cooked, skinless, boneless; exchange)',
+                    'Broccoli Boiled Edible (100 g edible portion, 100 g; HPB SG reference)',
+                    'Cooking Oil (1 tsp)']:
+            self.at.selectbox(key='selected_food_id').set_value(key)
+            self.button('Add Meal').click().run()
+        self.assertFalse(self.at.exception)
+        self.assertEqual(sum(row['Calories'] for row in self.at.session_state['food_log']), 220)
+        self.at.button(key='save_bottom_food').click().run()
+        fresh = self.new_app()
+        self.assertEqual(sum(row['Calories'] for row in fresh.session_state['food_log']), 220)
+        self.assertEqual(fresh.session_state['food_log'][-1]['Food'], 'Cooking Oil (1 tsp)')
+
     def button(self, prefix):
         return next(x for x in self.at.button if x.label.startswith(prefix))
 
@@ -402,6 +418,7 @@ class AppFlowTests(unittest.TestCase):
     def test_volume_reference_renders_and_saves_without_treating_ml_as_grams(self):
         self.at.text_input(key='food_search').set_value('low fat milk').run()
         self.assertFalse(self.at.exception)
+        self.at.selectbox(key='selected_food_id').set_value('Low Fat Milk (1 glass (250ml), 250 ml; HPB SG reference)')
         self.assertIn('250 ml', self.at.selectbox(key='selected_food_id').value)
         self.button('Add Meal').click().run()
         self.assertFalse(self.at.exception)

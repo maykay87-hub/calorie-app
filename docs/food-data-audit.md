@@ -1,5 +1,45 @@
 # Food data audit — 18 October 2026
 
+## Meal-composition repair — 23 October 2026
+
+The public demo previously loaded only `reference_database()`, excluding all
+original exchange entries. The signed-in app retained those entries but hid
+several teaching portions when adding composition references. Both now load the
+same `build_food_database()` catalogue. Original IDs and stored energy remain
+unchanged; previously saved meals are never recalculated during load.
+
+Restore the original teaching portions for rice, bread, oats, fruit, milk, egg
+and taukua alongside the published composition portions, with exchange labels.
+Retain complete meals as a separate ready-meal choice. Build-a-meal mode lets
+students add rice, meat, plain vegetables and cooking oil to the same meal;
+changing modes clears stale category/search restrictions. Personal package
+labels are added only to a fresh per-session catalogue instance.
+
+Cooking oil retains its original ID, 45 kcal and 5g fat per level-teaspoon
+exchange. This is supported by Malaysia's T2DM CPG 6th edition (2020), Appendix 3,
+printed page 212 (PDF page 213). The 5g is the exchange convention, not an
+assertion that every physical 5ml measure of every oil weighs exactly 5g.
+
+New drumstick/thigh/wing meat choices use the guideline's **generic poultry
+exchange**, 30g cooked edible meat per exchange, with 65 kcal, 7g protein, 4g fat
+and negligible carbohydrate; printed page 210 (PDF page 211). Explicitly label
+skinless, boneless and no added cooking oil. These are teaching estimates for
+named cuts, not cut-specific laboratory analyses or a claim that one whole
+drumstick, thigh or wing equals 30g. Native meat fat is included. Added oil is
+logged separately only when absent from the chosen preparation.
+
+Source: https://www.moh.gov.my/images/04-penerbitan/penerbitan-klinikal/panduan-amalan-klinikal/CPG_T2DM_6th_Edition_2020_13042021.pdf
+
+Plain boiled broccoli/spinach retain their measured composition-reference
+portions. The three ambiguous zero-energy legacy vegetable rows remain readable
+in old records but are not relabeled as actual zero-calorie vegetables. Cooked
+legacy vegetable estimates which include oil say so in their labels.
+
+This correction is prepared on the development channel. No production Sheets,
+student records, deployed release or paid membership settings were changed.
+
+## Original audit
+
 The original tracker contains 65 entries with no per-entry source URLs, measured portion weights, version or review date. Its numerical values are retained for historical compatibility, not relabeled as verified measurements.
 
 ## Findings

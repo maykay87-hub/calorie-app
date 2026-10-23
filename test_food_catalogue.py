@@ -1,20 +1,15 @@
-import ast
 import copy
 from pathlib import Path
 import unittest
 from nutrition_registry import REFERENCE_RECORDS, reference_database
+from food_database import build_food_database
+from exchange_foods import EXCHANGE_RECORDS
 from food_catalogue import (ALL_FOODS, RECENT_FOODS, CATEGORIES, FOOD_META,
                             food_label, filter_foods, remember_food)
 
 
 def existing_database():
-    tree = ast.parse(Path(__file__).with_name("advancedplus.app.py").read_text())
-    node = next(node for node in tree.body if isinstance(node, ast.Assign)
-                and any(isinstance(target, ast.Name) and target.id == "food_database"
-                        for target in node.targets))
-    database = ast.literal_eval(node.value)
-    database.update(reference_database())
-    return database
+    return build_food_database()
 
 
 class FoodCatalogueTests(unittest.TestCase):
@@ -24,7 +19,9 @@ class FoodCatalogueTests(unittest.TestCase):
     def test_every_existing_food_has_a_label_and_one_known_category(self):
         self.assertEqual(set(self.database), set(FOOD_META))
         for key in self.database:
-            if key in REFERENCE_RECORDS:
+            if key in EXCHANGE_RECORDS:
+                self.assertIn(EXCHANGE_RECORDS[key]['zh'], food_label(key))
+            elif key in REFERENCE_RECORDS:
                 self.assertIn(REFERENCE_RECORDS[key]["zh"], food_label(key))
             else:
                 self.assertIn(key, food_label(key))
@@ -56,7 +53,7 @@ class FoodCatalogueTests(unittest.TestCase):
         self.assertEqual(original, ["Egg (1 whole)", "Rice (1/2 cup)"])
         self.assertEqual(len(remember_food(list(self.database), "new", limit=8)), 8)
         self.assertEqual(filter_foods(self.database, RECENT_FOODS,
-                                     recent=["unknown", "Egg (1 whole)", "Egg (1 whole)"]), [])
+                                     recent=["unknown", "Egg (1 whole)", "Egg (1 whole)"]), ['Egg (1 whole)'])
         current_egg = next(key for key in self.database if key.startswith('Chicken Egg Hard Boiled ('))
         self.assertEqual(filter_foods(self.database, RECENT_FOODS, recent=[current_egg, current_egg]), [current_egg])
 

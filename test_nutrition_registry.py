@@ -5,6 +5,7 @@ import unittest
 from nutrition_registry import (SOURCE, REFERENCE_RECORDS, HIDDEN_LEGACY_IDS,
                                  reference_database, reference_portion, make_food_entry, format_energy)
 from food_catalogue import filter_foods, food_label
+from exchange_foods import RESTORED_EXCHANGE_IDS
 from tracker_storage import load_day, save_day, HEADERS
 from test_tracker_storage import Sheet
 
@@ -72,6 +73,9 @@ class ReferenceFoodTests(unittest.TestCase):
                 self.assertIn("SG参考", food_label(item["id"]))
                 self.assertIn(item["method"], ["Lab Analysis", "Derived", "Borrowed", "NIP"])
                 for previous in item["replaces"]:
+                    if previous in RESTORED_EXCHANGE_IDS:
+                        self.assertNotIn(previous, HIDDEN_LEGACY_IDS)
+                        continue
                     self.assertIn(previous, HIDDEN_LEGACY_IDS)
                     self.assertNotIn(previous, filter_foods(dict(self.database, **{previous: {}})))
 

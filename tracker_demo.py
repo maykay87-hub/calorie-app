@@ -3,8 +3,9 @@ from copy import deepcopy
 from datetime import datetime, date, timedelta
 from zoneinfo import ZoneInfo
 import streamlit as st
-from food_catalogue import food_picker_label, filter_foods, MEAL_LABELS
-from nutrition_registry import reference_database, make_food_entry
+from food_catalogue import food_picker_label, filter_foods, MEAL_LABELS, ALL_FOODS, BUILD_MEAL, READY_MEALS
+from food_database import build_food_database
+from nutrition_registry import make_food_entry
 from profile_storage import ACTIVITIES, validate_profile
 from tracker_state import change_entries, undo_entries
 from tracker_ui import MAY_BLOOM_CSS, calorie_summary, remaining_panel, brand_header, progress_scale, usage_instructions
@@ -73,17 +74,23 @@ def render_demo():
         st.progress(max(0.0, min(1.0, (intake - burned) / target)))
         st.markdown(progress_scale(intake - burned, target), unsafe_allow_html=True)
         st.markdown(remaining_panel(remaining), unsafe_allow_html=True)
-    database = reference_database()
-    foods = filter_foods(database)
+    database = build_food_database()
     saved = st.session_state.setdefault('demo_saved', {})
     food_tab, exercise_tab, history_tab = st.tabs(
         ['🍽️ Food Log · 饮食', '🔥 Exercise Log · 运动', '📜 Wellness History · 历史'],
         key='demo_tracker_tabs', on_change='rerun')
     with food_tab:
+        mode = st.segmented_control('食物选择 · Food choices', [ALL_FOODS, BUILD_MEAL, READY_MEALS],
+                                    default=ALL_FOODS, key='demo_food_entry_mode')
+        foods = filter_foods(database, mode=mode)
+        if mode == BUILD_MEAL:
+            st.caption('同一餐依次添加饭、肉、菜和油；已含油的菜肴不用重复加油。')
+        if st.session_state.get('demo_selected_food_id') not in foods:
+            st.session_state['demo_selected_food_id'] = foods[0]
         with st.form('demo_food_form'):
             a, b, c, d = st.columns([1.2, 3.5, 1, 1.3], vertical_alignment='bottom')
             meal = a.selectbox('餐次 · Meal', list(MEAL_LABELS), format_func=MEAL_LABELS.get)
-            food = b.selectbox('食物 · Food Item', foods, format_func=food_picker_label)
+            food = b.selectbox('食物 · Food Item', foods, format_func=food_picker_label, key='demo_selected_food_id')
             qty = c.number_input('份数 · Servings', min_value=.01, value=1.0, step=.25)
             add = d.form_submit_button('Add Meal ＋', type='primary', use_container_width=True)
         if add:

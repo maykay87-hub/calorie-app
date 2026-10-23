@@ -4,6 +4,20 @@ from unittest.mock import patch
 
 
 class DemoTests(unittest.TestCase):
+    def test_demo_can_compose_meal_from_original_exchanges_and_undo_oil(self):
+        from streamlit.testing.v1 import AppTest
+        with patch('gspread.authorize', side_effect=AssertionError('Demo must never connect to Google')):
+            app = AppTest.from_file(str(Path(__file__).with_name('advancedplus.app.py')), default_timeout=15)
+            app.query_params['demo'] = '1'
+            app.run()
+            for key in ['Rice (1/2 cup)', 'Chicken Drumstick (1 piece)', 'Cooking Oil (1 tsp)']:
+                app.selectbox(key='demo_selected_food_id').set_value(key)
+                next(b for b in app.button if b.label.startswith('Add Meal')).click().run()
+            self.assertFalse(app.exception)
+            self.assertEqual(sum(row['Calories'] for row in app.session_state['demo_foods']), 250)
+            next(b for b in app.button if b.label == '撤销上一笔 · Undo').click().run()
+            self.assertEqual(sum(row['Calories'] for row in app.session_state['demo_foods']), 205)
+
     def test_exercise_page_stays_selected_after_add_undo_and_save(self):
         from streamlit.testing.v1 import AppTest
         app = AppTest.from_file(str(Path(__file__).with_name('advancedplus.app.py')), default_timeout=15)

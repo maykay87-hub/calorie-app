@@ -2,9 +2,12 @@
 import re
 import unicodedata
 from nutrition_registry import REFERENCE_RECORDS, HIDDEN_LEGACY_IDS, reference_portion
+from exchange_foods import EXCHANGE_RECORDS, RESTORED_EXCHANGE_IDS
 
 ALL_FOODS = "全部食物 · All foods"
 RECENT_FOODS = "最近使用 · Recent"
+BUILD_MEAL = "自己搭配 · Build a meal"
+READY_MEALS = "整份餐点 · Ready meals"
 MEAL_LABELS = {"Breakfast": "早餐 Breakfast", "Lunch": "午餐 Lunch", "Dinner": "晚餐 Dinner", "Snack": "加餐 Snack"}
 
 CATEGORIES = ["主食与谷物 · Grains & starches","水果 · Fruit","蔬菜 · Vegetables","肉蛋豆鱼 · Protein foods","奶类与酸奶 · Dairy","油脂与坚果 · Fats & nuts","本地餐食 · Local meals","饮料 · Drinks","酱料 · Sauces"]
@@ -37,10 +40,10 @@ FOOD_META = {
     "Papaya (1 slice)": ("木瓜（1片）", "水果 · Fruit"),
     "Watermelon (1 slice)": ("西瓜（1片）", "水果 · Fruit"),
     "Ulam (Cucumber/Raw Greens)": ("生菜／黄瓜", "蔬菜 · Vegetables"),
-    "Bayam Soup (Spinach)": ("菠菜汤", "蔬菜 · Vegetables"),
+    "Bayam Soup (Spinach)": ("菠菜汤（旧交换估算，已含油）", "蔬菜 · Vegetables"),
     "Sawi / Choy Sum (Blanched)": ("烫青菜／菜心", "蔬菜 · Vegetables"),
     "Steamed Broccoli/ cauliflower": ("蒸西兰花／花椰菜", "蔬菜 · Vegetables"),
-    "Stir fry vegetables": ("炒蔬菜", "蔬菜 · Vegetables"),
+    "Stir fry vegetables": ("炒蔬菜（旧交换估算，已含油）", "蔬菜 · Vegetables"),
     "Chicken Drumstick (1 piece)": ("鸡腿（1只）", "肉蛋豆鱼 · Protein foods"),
     "Meat / Beef / Mutton (Lean - 2 matchbox size)": ("瘦肉／牛肉／羊肉（2火柴盒大小）", "肉蛋豆鱼 · Protein foods"),
     "Prawns (6 medium)": ("虾（中，6只）", "肉蛋豆鱼 · Protein foods"),
@@ -78,9 +81,13 @@ FOOD_META = {
 }
 
 FOOD_META.update({key: (item["zh"], item["category"]) for key, item in REFERENCE_RECORDS.items()})
+FOOD_META.update({key: (item['zh'], item['category']) for key, item in EXCHANGE_RECORDS.items()})
 
 
 def food_label(food_id):
+    if food_id in EXCHANGE_RECORDS:
+        item = EXCHANGE_RECORDS[food_id]
+        return f"{item['zh']} · {item['name']}"
     reference = REFERENCE_RECORDS.get(food_id)
     if reference:
         portions = {"1 bowl": "1碗", "1 plate": "1盘", "1 piece": "1片", "1 set": "1份",
@@ -113,6 +120,10 @@ SEARCH_ALIASES = {
 
 
 SEARCH_ALIASES.update({key: item["aliases"] + " " + item["original_name"] for key, item in REFERENCE_RECORDS.items()})
+SEARCH_ALIASES.update({key: item['aliases'] for key, item in EXCHANGE_RECORDS.items()})
+for key in REFERENCE_RECORDS:
+    if key.startswith(('Broccoli Boiled Edible (', 'Spinach Boiled (')):
+        SEARCH_ALIASES[key] += ' 蔬菜 青菜 vegetables plain vegetables no added oil 不加油 水煮'
 
 
 def _search_text(value):
@@ -125,13 +136,16 @@ def _matches_search(query, searchable):
             or query.replace(" ", "") in searchable.replace(" ", ""))
 
 
-def filter_foods(database, category=ALL_FOODS, query="", recent=()):
+def filter_foods(database, category=ALL_FOODS, query="", recent=(), mode=ALL_FOODS):
     query = _search_text(query)
     visible = [key for key in database if key not in HIDDEN_LEGACY_IDS]
-    visible.sort(key=lambda key: -1 if REFERENCE_RECORDS.get(key, {}).get("preferred_reference") else 0 if REFERENCE_RECORDS.get(key, {}).get("source_id") == "hpb_sgfoodid"
+    if mode in {BUILD_MEAL, READY_MEALS}:
+        visible = [key for key in visible if
+                   (FOOD_META.get(key, ('', ''))[1] == '本地餐食 · Local meals') == (mode == READY_MEALS)]
+    visible.sort(key=lambda key: -3 if key in EXCHANGE_RECORDS or key in RESTORED_EXCHANGE_IDS else -1 if REFERENCE_RECORDS.get(key, {}).get("preferred_reference") else 0 if REFERENCE_RECORDS.get(key, {}).get("source_id") == "hpb_sgfoodid"
                  else 1 if key in REFERENCE_RECORDS else 2)
-    # A typed food name always searches the entire database. Categories only
-    # narrow browsing when the search box is empty.
+    # Search across browse categories within the chosen ingredient/meal mode.
+    # Categories narrow browsing only when the search box is empty.
     if query:
         matches = [
             key for key in visible
@@ -140,7 +154,7 @@ def filter_foods(database, category=ALL_FOODS, query="", recent=()):
         matches.sort(key=lambda key: query not in _search_text(food_label(key) + " " + SEARCH_ALIASES.get(key, "")))
         return matches
     if category == RECENT_FOODS:
-        return list(dict.fromkeys(item for item in recent if item in database and item not in HIDDEN_LEGACY_IDS))
+        return list(dict.fromkeys(item for item in recent if item in visible))
     if category == ALL_FOODS:
         return visible
     return [key for key in visible if FOOD_META.get(key, ("", ""))[1] == category]
@@ -157,4 +171,7 @@ def food_picker_label(food_id):
             portion += f"，{reference['recipe_variant']}"
         name = food_id.split(' (' + reference['portion'] + ',', 1)[0]
         return f"{reference['zh']} · {name}（{portion}）"
-    return food_label(food_id)
+    label = food_label(food_id)
+    if food_id in RESTORED_EXCHANGE_IDS or food_id == 'Chicken Drumstick (1 piece)':
+        label += ' · 交换估算'
+    return label
