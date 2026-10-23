@@ -1,5 +1,41 @@
 # Food data audit — 18 October 2026
 
+## Source-reviewed expansion — 23 October 2026
+
+The catalogue now has 250 selectable food/portion records (270 including
+historical-only IDs). This batch adds 93 choices: 39 MyFCD ingredient records and
+54 Atlas/CPG exchange estimates. These counts are choices with distinct portion
+or preparation bases, not 250 unique food species or 250 laboratory analyses.
+
+The 39 curated MyFCD 1997 records cover 24 vegetables, four bean products, five
+meat/poultry records and six fish/prawn records. Nutrients are read from the
+official per-100g edible column and scaled to the labelled edible weight once.
+Source food codes, original headings, URLs, retrieval date and per-100g values
+are preserved in `data/foods_myfcd_ingredients.json`; the standard-library import
+script rejects missing/changed nutrient cells. Imports are an offline review
+task, never a runtime network dependency.
+
+MyFCD ingredient titles do not always explicitly state preparation or skin
+removal. The raw basis used for unprepared ingredient records is recorded as a
+curated interpretation, not a directly published raw/cooked declaration. Poultry
+labels state when skin removal is unspecified. Do not substitute those records
+for skinless cooked poultry exchanges or apply a generic cooking yield to all
+foods. Source gram-edible percentages are not applied again to published
+per-100g edible values.
+
+The owner-supplied second-edition Atlas Appendix 5 pages support added grain,
+fruit, bean/meat-substitute, fish, fat and milk exchange choices. These are
+teaching estimates. Preserve unknown protein/carbohydrate/fat as null where the
+table does not quantify them. Keep the book's cup basis (200ml for those exchange
+lists) separate from its explicitly stated 240ml milk portion. No full online
+copy of this book has been claimed or republished. The separate CPG poultry
+exchange includes both 40g raw and 30g cooked choices; two raw exchanges are
+80g, whereas two cooked exchanges are60g.
+
+All previous food IDs and saved nutrient snapshots remain readable. This batch
+does not alter profile targets, reviews, notes, attachments, prices, membership
+gates, authentication or payment integration.
+
 ## Meal-composition repair — 23 October 2026
 
 The public demo previously loaded only `reference_database()`, excluding all

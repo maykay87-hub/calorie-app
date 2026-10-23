@@ -15,7 +15,7 @@ class ReferenceFoodTests(unittest.TestCase):
         self.database = reference_database()
 
     def test_reference_manifest_has_traceable_portions_and_explicit_missing_macros(self):
-        self.assertEqual(len(REFERENCE_RECORDS), 109)
+        self.assertEqual(len(REFERENCE_RECORDS), 148)
         for key, item in REFERENCE_RECORDS.items():
             with self.subTest(food=key):
                 amount, unit = reference_portion(item)
@@ -23,12 +23,12 @@ class ReferenceFoodTests(unittest.TestCase):
                 self.assertIn(unit, ['g', 'ml'])
                 self.assertGreater(item["energy_kcal"], 0)
                 self.assertTrue(math.isfinite(item["energy_kcal"]))
-                if item.get("source_id") != "hpb_sgfoodid":
+                if item.get("source_id") not in {"hpb_sgfoodid", 'myfcd_1997'}:
                     self.assertTrue(1 <= item["pdf_page"] <= 108)
                     self.assertIn(item["reference_code"], SOURCE["reference_codes"])
                 self.assertTrue(item["original_name"])
                 for nutrient in ["Prot", "Carbs", "Fat"]:
-                    if item.get("macronutrient_source") or item.get("source_id") == "hpb_sgfoodid":
+                    if item.get("macronutrient_source") or item.get("source_id") in {"hpb_sgfoodid", 'myfcd_1997'}:
                         self.assertGreaterEqual(self.database[key][nutrient], 0)
                     else:
                         self.assertIsNone(self.database[key][nutrient])

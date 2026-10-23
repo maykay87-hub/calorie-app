@@ -90,10 +90,14 @@ def food_label(food_id):
         return f"{item['zh']} · {item['name']}"
     reference = REFERENCE_RECORDS.get(food_id)
     if reference:
+        if reference.get('source_id') == 'myfcd_1997':
+            skin = '，去皮情况未注明 / skin unspecified' if reference.get('skin_status') == 'not_specified' else ''
+            basis = reference['portion_zh'].replace('生重可食部 / raw','原料生重估算 / raw basis')
+            return f"{reference['zh']}（{basis}，{reference['weight_g']:g}g{skin}） · {food_id.split(' (',1)[0]}"
         portions = {"1 bowl": "1碗", "1 plate": "1盘", "1 piece": "1片", "1 set": "1份",
                     "1 pack": "1包", "1 pot": "1煲", "1 scoop": "1勺", "1 cup": "1杯"}
         portion = reference.get("portion_zh", portions.get(reference["portion"], reference["portion"]))
-        name = food_id.split(" (" + reference["portion"] + ",", 1)[0]
+        name = food_id.split(' (',1)[0] if reference.get('source_id') == 'myfcd_1997' else food_id.split(" (" + reference["portion"] + ",", 1)[0]
         region = "，SG参考" if reference.get("source_id") == "hpb_sgfoodid" else ""
         amount, unit = reference_portion(reference)
         return f"{reference['zh']}（{portion}，{amount:g}{unit}{region}） · {name}"
@@ -142,7 +146,7 @@ def filter_foods(database, category=ALL_FOODS, query="", recent=(), mode=ALL_FOO
     if mode in {BUILD_MEAL, READY_MEALS}:
         visible = [key for key in visible if
                    (FOOD_META.get(key, ('', ''))[1] == '本地餐食 · Local meals') == (mode == READY_MEALS)]
-    visible.sort(key=lambda key: -3 if key in EXCHANGE_RECORDS or key in RESTORED_EXCHANGE_IDS else -1 if REFERENCE_RECORDS.get(key, {}).get("preferred_reference") else 0 if REFERENCE_RECORDS.get(key, {}).get("source_id") == "hpb_sgfoodid"
+    visible.sort(key=lambda key: -3 if key in EXCHANGE_RECORDS or key in RESTORED_EXCHANGE_IDS else -2 if REFERENCE_RECORDS.get(key, {}).get('source_id') == 'myfcd_1997' else -1 if REFERENCE_RECORDS.get(key, {}).get("preferred_reference") else 0 if REFERENCE_RECORDS.get(key, {}).get("source_id") == "hpb_sgfoodid"
                  else 1 if key in REFERENCE_RECORDS else 2)
     # Search across browse categories within the chosen ingredient/meal mode.
     # Categories narrow browsing only when the search box is empty.
@@ -164,14 +168,16 @@ def food_picker_label(food_id):
     """Short eating-oriented label; provenance remains available in Food details."""
     reference = REFERENCE_RECORDS.get(food_id)
     if reference:
+        if reference.get('source_id') == 'myfcd_1997':
+            return food_label(food_id)
         portion = reference.get('portion_zh', reference['portion'])
         amount, unit = reference_portion(reference)
         portion = f"{portion}，{format(amount, 'g')}{unit}"
         if reference.get('recipe_variant'):
             portion += f"，{reference['recipe_variant']}"
-        name = food_id.split(' (' + reference['portion'] + ',', 1)[0]
+        name = food_id.split(' (',1)[0] if reference.get('source_id') == 'myfcd_1997' else food_id.split(' (' + reference['portion'] + ',', 1)[0]
         return f"{reference['zh']} · {name}（{portion}）"
     label = food_label(food_id)
-    if food_id in RESTORED_EXCHANGE_IDS or food_id == 'Chicken Drumstick (1 piece)':
-        label += ' · 交换估算'
+    if food_id in FOOD_META and FOOD_META[food_id][1] != '本地餐食 · Local meals' and food_id != 'Plain Water':
+        label += ' · 原有交换估算'
     return label

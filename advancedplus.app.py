@@ -825,8 +825,22 @@ with tab1:
                 st.caption("你填写的包装标签资料，尚未独立核实。 Your own package-label values; not independently verified.")
             elif food in EXCHANGE_RECORDS:
                 exchange = EXCHANGE_RECORDS[food]
-                st.markdown(f"[食物交换表 · Malaysia CPG Appendix 3]({EXCHANGE_SOURCE['url']}#page={exchange['pdf_page']})")
-                st.caption('交换份为估算；鸡肉按去皮去骨熟重计算，不是一整只的重量。额外烹调油另加，肉本身的脂肪已计入。')
+                source = exchange.get('source', EXCHANGE_SOURCE)
+                if source.get('url'):
+                    st.markdown(f"[食物交换表 · Food exchange list]({source['url']}#page={exchange['pdf_page']})")
+                else:
+                    st.caption(source['title'] + ' · ' + source['section'])
+                st.caption('交换份是教学估算；以所选项目标示的份量为准。额外烹调油另加，已含油的菜肴不用重复加油。')
+                if exchange.get('household_measure_basis'):
+                    st.caption(exchange['household_measure_basis'])
+            elif reference and reference.get('source_id') == 'myfcd_1997':
+                st.markdown(f"[MyFCD Malaysia · Food {reference['food_code']}]({reference['source_url']})")
+                st.write(reference['original_name'])
+                st.caption('采用来源每100g可食部成分，按标示重量换算；生重不能直接当熟重使用。 Published edible-weight composition, scaled to the labelled portion; raw and cooked weights differ.')
+                if reference.get('preparation_basis') == 'curated_ingredient_interpretation':
+                    st.caption('此原料条目按生重使用，是食材名称的整理判断；原来源未逐项标明生熟，不能当成同重量熟食。 Raw-basis use is a curated ingredient interpretation, not an explicitly stated cooked preparation.')
+                if reference['skin_status'] == 'not_specified':
+                    st.caption('来源未注明去皮，不等同去皮熟肉交换份。 Source does not specify skin removal; this is separate from the skinless cooked exchange.')
             elif reference and reference.get("source_id") == "hpb_sgfoodid":
                 st.markdown(f"[{SG_SOURCE['title']}]({reference['source_url']})")
                 st.write(reference["original_name"])
