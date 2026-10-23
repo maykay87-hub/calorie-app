@@ -91,7 +91,8 @@ Once actual event wakeups pass, use a 30-minute recovery/reminder sweep instead 
 the original five-minute scheduler-only instructions above. Without wakeups, mail
 can wait for the next sweep; that is not instant activation. Frequent empty polls
 can exhaust a sleeping database's free compute allowance even with no buyers.
-No Cloud Tasks queue, sender or free database has been configured yet.
+No Cloud Tasks queue or sender has been configured yet. The isolated Neon Free
+test database is now provisioned; see the validation checkpoint below.
 
 ## Returning-student continuation — development only
 
@@ -116,8 +117,32 @@ Do not expose the private renewal form as a public sign-up product.
 Baya course entitlements still require verified order ingestion/import before
 they can qualify here; no course-order integration has been assumed or created.
 
-Real infrastructure access checkpoint: Neon installation is confirmed but its
-project/database operations are not exposed in the current tool list. No Neon
-project, plan, region or database has been inspected or created. Google Cloud
-console again returned Site Unavailable after one reload. Neither condition is
-evidence that the owner's own accounts are down. No cloud spending was enabled.
+## PostgreSQL validation checkpoint — 2026-10-23
+
+An isolated Neon Free project in Singapore now has a clean baseline branch and
+a separate staging branch. Compute is fixed at 0.25 CU; the baseline was observed
+automatically suspended after about five minutes idle. No paid plan or add-on
+was enabled. No existing Sheets records or student deployment were changed.
+
+`python -m automation_service.postgres_validation --run-id <8-24 hex characters>`
+generates synthetic SQL checks from the current SQLAlchemy schema; it does not
+connect or load credentials. Use explicit test project/branch/database targets.
+The database name must end in `_test`. Run the plan sections in order, with both
+booking transactions submitted concurrently, and expect the deliberate rollback
+section to fail. Never run this helper against a student database.
+
+Official Neon SQL tools executed the 13-table schema on PostgreSQL 17.11. Checks
+observed one entitlement/event after payment replay, one booking and one debit
+for two competing transactions, no change on retry, and complete rollback after
+a deliberate unique-constraint failure. A logical export containing eight
+synthetic rows was rebuilt in a second empty test database; all 13 tables matched.
+The restore generator also rejects nonempty destinations rather than merging.
+
+These are representative SQL transaction checks, not execution of the Python
+application against Neon. This environment cannot resolve the database hostname.
+The 55 focused local application tests passed separately. Actual hosted driver
+connectivity, concurrent application requests, Stripe test events, real email,
+queue retries, and hosted recovery remain release requirements. The logical
+rebuild does not validate pg_dump/pg_restore, provider PITR, or existing Sheets
+backups. Google Cloud console still returns Site Unavailable in this browser;
+deployment has not been performed.
