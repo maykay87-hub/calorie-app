@@ -178,6 +178,6 @@ def food_picker_label(food_id):
         name = food_id.split(' (',1)[0] if reference.get('source_id') == 'myfcd_1997' else food_id.split(' (' + reference['portion'] + ',', 1)[0]
         return f"{reference['zh']} · {name}（{portion}）"
     label = food_label(food_id)
-    if food_id in FOOD_META and FOOD_META[food_id][1] != '本地餐食 · Local meals' and food_id != 'Plain Water':
+    if food_id not in EXCHANGE_RECORDS and food_id in FOOD_META and FOOD_META[food_id][1] != '本地餐食 · Local meals' and food_id != 'Plain Water':
         label += ' · 原有交换估算'
     return label
