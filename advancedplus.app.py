@@ -17,8 +17,10 @@ from student_notes_ui import render_student_notes, render_note_history
 from student_notes import load_notes, annotate_energy_status
 from tracker_export import export_history_csv, export_draft
 from profile_storage import ACTIVITIES, load_profile, save_profile
-from nutrition_registry import SOURCE, SG_SOURCE, REFERENCE_RECORDS, reference_database, reference_portion, make_food_entry, format_energy
-from food_catalogue import ALL_FOODS, RECENT_FOODS, CATEGORIES, MEAL_LABELS, food_label, food_picker_label, filter_foods, remember_food
+from nutrition_registry import SOURCE, SG_SOURCE, REFERENCE_RECORDS, reference_portion, make_food_entry, format_energy
+from food_catalogue import ALL_FOODS, RECENT_FOODS, BUILD_MEAL, READY_MEALS, CATEGORIES, MEAL_LABELS, food_label, food_picker_label, filter_foods, remember_food
+from food_database import build_food_database
+from exchange_foods import EXCHANGE_RECORDS, EXCHANGE_SOURCE
 from tracker_ui import MAY_BLOOM_CSS, calorie_summary, remaining_panel, brand_header, progress_scale, usage_instructions
 
 # --- 1. APP CONFIGURATION ---
@@ -397,75 +399,7 @@ if draft.get("legacy"):
 
 
 # --- DATABASES ---
-food_database = {
-    "Rice (1/2 cup)": {"Cals": 75, "Prot": 2, "Carbs": 15, "Fat": 0},
-    "Whole Meal Bread (1 slice)": {"Cals": 75, "Prot": 2, "Carbs": 15, "Fat": 1},
-    "Oats (3 tablespoons)": {"Cals": 75, "Prot": 2, "Carbs": 15, "Fat": 2},
-    "Mee / Noodle (1/2 cup)": {"Cals": 75, "Prot": 2, "Carbs": 15, "Fat": 1},
-    "Potato/ Carrot (1/2 cup)": {"Cals": 75, "Prot": 2, "Carbs": 15, "Fat": 0},
-    "Corn / Jagung (1/2 cup)": {"Cals": 75, "Prot": 2, "Carbs": 15, "Fat": 1},
-    "Yam / Keladi (1/2 cup)": {"Cals": 75, "Prot": 2, "Carbs": 15, "Fat": 0},
-    "Cream Crackers (3 pieces)": {"Cals": 75, "Prot": 2, "Carbs": 15, "Fat": 2},
-    "Plain Biscuits / Marie (3 pieces)": {"Cals": 75, "Prot": 2, "Carbs": 15, "Fat": 2},
-    "Bun (1 small plain)": {"Cals": 75, "Prot": 2, "Carbs": 15, "Fat": 2},
-    "Spaghetti (1/2 cup)": {"Cals": 75, "Prot": 2, "Carbs": 15, "Fat": 1},
-    "Baked beans,canned/ Lentils (1/3 cup)": {"Cals": 75, "Prot": 2, "Carbs": 15, "Fat": 1},
-    "Apple (1 small)": {"Cals": 60, "Prot": 0, "Carbs": 15, "Fat": 0},
-    "Orange (1 small)": {"Cals": 60, "Prot": 0, "Carbs": 15, "Fat": 0},
-    "Pear (1/2 medium)": {"Cals": 60, "Prot": 0, "Carbs": 15, "Fat": 0},
-    "Kiwi (1 large)": {"Cals": 60, "Prot": 0, "Carbs": 15, "Fat": 0},
-    "Ciku (2 medium)": {"Cals": 60, "Prot": 0, "Carbs": 15, "Fat": 0},
-    "Pineapple (1 slice)": {"Cals": 60, "Prot": 0, "Carbs": 15, "Fat": 0},
-    "Honeydew (1 slice)": {"Cals": 60, "Prot": 0, "Carbs": 15, "Fat": 0},
-    "Jackfruit / Nangka (4 pieces)": {"Cals": 60, "Prot": 0, "Carbs": 15, "Fat": 0},
-    "Plum (2 medium)": {"Cals": 60, "Prot": 0, "Carbs": 15, "Fat": 0},
-    "Mango (1/2 small)": {"Cals": 60, "Prot": 0, "Carbs": 15, "Fat": 0},
-    "Guava (1/2 medium)": {"Cals": 60, "Prot": 0, "Carbs": 15, "Fat": 0},
-    "Banana (1 small)": {"Cals": 60, "Prot": 0, "Carbs": 15, "Fat": 0},
-    "Papaya (1 slice)": {"Cals": 60, "Prot": 0, "Carbs": 15, "Fat": 0},
-    "Watermelon (1 slice)": {"Cals": 60, "Prot": 0, "Carbs": 15, "Fat": 0},
-    "Ulam (Cucumber/Raw Greens)":   {"Cals": 0,  "Prot": 0,  "Carbs": 0,  "Fat": 0},
-    "Bayam Soup (Spinach)":         {"Cals": 45,  "Prot": 0,  "Carbs": 0,  "Fat": 5},
-    "Sawi / Choy Sum (Blanched)":   {"Cals": 0,  "Prot": 0,  "Carbs": 0,  "Fat": 0},
-    "Steamed Broccoli/ cauliflower": {"Cals": 0,  "Prot": 0,  "Carbs": 0,  "Fat": 0},
-    "Stir fry vegetables":          {"Cals": 45,  "Prot": 0,  "Carbs": 0,  "Fat": 5},
-    "Chicken Drumstick (1 piece)": {"Cals": 130, "Prot": 14, "Carbs": 0, "Fat": 8},
-    "Meat / Beef / Mutton (Lean - 2 matchbox size)": {"Cals": 130, "Prot": 14, "Carbs": 0, "Fat": 8},
-    "Prawns (6 medium)": {"Cals": 50, "Prot": 7, "Carbs": 0, "Fat": 2},
-    "Egg (1 whole)": {"Cals": 65, "Prot": 7, "Carbs": 0, "Fat": 5},
-    "Fish (1 medium piece)": {"Cals": 70, "Prot": 14, "Carbs": 0, "Fat": 2},
-    "Taukua (1 piece)": {"Cals": 130, "Prot": 14, "Carbs": 0, "Fat": 8},
-    "Ikan Bilis (2 tbsp)": {"Cals": 65, "Prot": 7, "Carbs": 0, "Fat": 2},
-    "Yogurt (Natural - 1 cup)": {"Cals": 100, "Prot": 8, "Carbs": 12, "Fat": 2},
-    "Low Fat Milk (1 glass)": {"Cals": 125, "Prot": 8, "Carbs": 12, "Fat": 5},
-    "Full Cream Milk (1 glass)": {"Cals": 150, "Prot": 8, "Carbs": 10, "Fat": 9},
-    "Skim Milk (1 glass)": {"Cals": 90, "Prot": 8, "Carbs": 15, "Fat": 0},
-    "Cooking Oil (1 tsp)": {"Cals": 45, "Prot": 0, "Carbs": 0, "Fat": 5},
-    "Butter / Margarine / Mayonnaise (1 tsp)": {"Cals": 45, "Prot": 0, "Carbs": 0, "Fat": 5},
-    "Peanut (20 small)": {"Cals": 45, "Prot": 0, "Carbs": 0, "Fat": 5},
-    "Walnut (1 whole)": {"Cals": 45, "Prot": 0, "Carbs": 0, "Fat": 5},
-    "Almond/ Cashew nut (6 whole)": {"Cals": 45, "Prot": 0, "Carbs": 0, "Fat": 5},
-    "Sesame seed (1 level tablespoon)": {"Cals": 45, "Prot": 0, "Carbs": 0, "Fat": 5},
-    "Coconut milk (santan) (2 level tablespoons)": {"Cals": 45, "Prot": 0, "Carbs": 0, "Fat": 5},
-    "Nasi Lemak (Standard Hawker)": {"Cals": 440, "Prot": 11, "Carbs": 30, "Fat": 25},
-    "Chicken Rice (Roasted - 1 plate)": {"Cals": 600, "Prot": 25, "Carbs": 60, "Fat": 28},
-    "Mee Goreng / Fried Mee (1 plate)": {"Cals": 500, "Prot": 15, "Carbs": 60, "Fat": 22},
-    "Noodle Soup / Mee Soup (1 bowl)": {"Cals": 350, "Prot": 15, "Carbs": 45, "Fat": 12},
-    "Curry Mee (1 bowl)": {"Cals": 550, "Prot": 18, "Carbs": 50, "Fat": 30},
-    "Char Kuey Teow (1 plate)": {"Cals": 740, "Prot": 15, "Carbs": 70, "Fat": 40},
-    "Roti Canai (1 piece + dhal)": {"Cals": 300, "Prot": 6, "Carbs": 35, "Fat": 15},
-    "Tosai (1 piece)": {"Cals": 200, "Prot": 4, "Carbs": 35, "Fat": 4},
-    "Sandwich (Egg Mayo - 2 slices)": {"Cals": 300, "Prot": 10, "Carbs": 30, "Fat": 15},
-    "Satay (Chicken - 5 sticks)": {"Cals": 185, "Prot": 15, "Carbs": 5, "Fat": 12},
-    "Teh Tarik (1 glass)": {"Cals": 180, "Prot": 4, "Carbs": 25, "Fat": 6},
-    "Kopi O (Black with Sugar)": {"Cals": 60, "Prot": 0, "Carbs": 15, "Fat": 0},
-    "Kopi Susu (Coffee with Milk)": {"Cals": 140, "Prot": 3, "Carbs": 20, "Fat": 5},
-    "Milo (1 cup)": {"Cals": 150, "Prot": 3, "Carbs": 25, "Fat": 4},
-    "Syrup Bandung (1 glass)": {"Cals": 150, "Prot": 2, "Carbs": 25, "Fat": 5},
-    "Plain Water": {"Cals": 0, "Prot": 0, "Carbs": 0, "Fat": 0}
-}
-
-food_database.update(reference_database())
+food_database = build_food_database()
 
 exercise_database = {
     "Zumba / Aerobics": 250, "Pound (Cardio Drumming)": 240, "Jogging": 240,
@@ -620,9 +554,16 @@ with tab1:
     food_database.update({name: {"Cals": item["Calories"], "Prot": item["Protein"],
                                 "Carbs": item["Carbs"], "Fat": item["Fat"]}
                           for name, item in personal_by_food.items()})
+    def reset_food_browse():
+        st.session_state['food_browse_category'] = ALL_FOODS
+        st.session_state['food_search'] = ''
+    mode = st.segmented_control('食物选择 · Food choices', [ALL_FOODS, BUILD_MEAL, READY_MEALS],
+                                default=ALL_FOODS, key='food_entry_mode', on_change=reset_food_browse)
+    if mode == BUILD_MEAL:
+        st.caption('同一餐依次添加饭、肉、菜和油；已含油的菜肴不用重复加油。')
     category = st.session_state.get("food_browse_category", ALL_FOODS)
     query = st.session_state.get("food_search", "")
-    choices = filter_foods(food_database, category, query, st.session_state.get("recent_food_names", []))
+    choices = filter_foods(food_database, category, query, st.session_state.get("recent_food_names", []), mode=mode)
     add_meal = False
     reference = personal_food = None
     if choices:
@@ -723,7 +664,7 @@ with tab1:
         st.text_input("搜索食物 · Search food", placeholder="nasi lemak、鸡饭、炒面", key="food_search")
         st.selectbox("浏览范围 · Browse", [ALL_FOODS, RECENT_FOODS] + CATEGORIES, key="food_browse_category")
         if query.strip():
-            st.caption("正在搜索全部食物 · Searching all foods")
+            st.caption("正在搜索当前食物选择范围 · Searching this food selection")
         st.markdown("**我的食品 · My foods**")
         if personal_labels:
             st.caption("从你已保存的饮食记录恢复；当前新填标签在保存当天记录后可于下次登入使用。 Reuse your own labels. Save the day to keep new labels for your next sign-in.")
@@ -777,6 +718,24 @@ with tab1:
         if choices:
             if personal_food:
                 st.caption("你填写的包装标签资料，尚未独立核实。 Your own package-label values; not independently verified.")
+            elif food in EXCHANGE_RECORDS:
+                exchange = EXCHANGE_RECORDS[food]
+                source = exchange.get('source', EXCHANGE_SOURCE)
+                if source.get('url'):
+                    st.markdown(f"[食物交换表 · Food exchange list]({source['url']}#page={exchange['pdf_page']})")
+                else:
+                    st.caption(source['title'] + ' · ' + source['section'])
+                st.caption('交换份是教学估算；以所选项目标示的份量为准。额外烹调油另加，已含油的菜肴不用重复加油。')
+                if exchange.get('household_measure_basis'):
+                    st.caption(exchange['household_measure_basis'])
+            elif reference and reference.get('source_id') == 'myfcd_1997':
+                st.markdown(f"[MyFCD Malaysia · Food {reference['food_code']}]({reference['source_url']})")
+                st.write(reference['original_name'])
+                st.caption('采用来源每100g可食部成分，按标示重量换算；生重不能直接当熟重使用。 Published edible-weight composition, scaled to the labelled portion; raw and cooked weights differ.')
+                if reference.get('preparation_basis') == 'curated_ingredient_interpretation':
+                    st.caption('此原料条目按生重使用，是食材名称的整理判断；原来源未逐项标明生熟，不能当成同重量熟食。 Raw-basis use is a curated ingredient interpretation, not an explicitly stated cooked preparation.')
+                if reference['skin_status'] == 'not_specified':
+                    st.caption('来源未注明去皮，不等同去皮熟肉交换份。 Source does not specify skin removal; this is separate from the skinless cooked exchange.')
             elif reference and reference.get("source_id") == "hpb_sgfoodid":
                 st.markdown(f"[{SG_SOURCE['title']}]({reference['source_url']})")
                 st.write(reference["original_name"])

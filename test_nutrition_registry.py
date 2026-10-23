@@ -5,6 +5,7 @@ import unittest
 from nutrition_registry import (SOURCE, REFERENCE_RECORDS, HIDDEN_LEGACY_IDS,
                                  reference_database, reference_portion, make_food_entry, format_energy)
 from food_catalogue import filter_foods, food_label
+from exchange_foods import RESTORED_EXCHANGE_IDS
 from tracker_storage import load_day, save_day, HEADERS
 from test_tracker_storage import Sheet
 
@@ -14,7 +15,7 @@ class ReferenceFoodTests(unittest.TestCase):
         self.database = reference_database()
 
     def test_reference_manifest_has_traceable_portions_and_explicit_missing_macros(self):
-        self.assertEqual(len(REFERENCE_RECORDS), 109)
+        self.assertEqual(len(REFERENCE_RECORDS), 148)
         for key, item in REFERENCE_RECORDS.items():
             with self.subTest(food=key):
                 amount, unit = reference_portion(item)
@@ -22,12 +23,12 @@ class ReferenceFoodTests(unittest.TestCase):
                 self.assertIn(unit, ['g', 'ml'])
                 self.assertGreater(item["energy_kcal"], 0)
                 self.assertTrue(math.isfinite(item["energy_kcal"]))
-                if item.get("source_id") != "hpb_sgfoodid":
+                if item.get("source_id") not in {"hpb_sgfoodid", 'myfcd_1997'}:
                     self.assertTrue(1 <= item["pdf_page"] <= 108)
                     self.assertIn(item["reference_code"], SOURCE["reference_codes"])
                 self.assertTrue(item["original_name"])
                 for nutrient in ["Prot", "Carbs", "Fat"]:
-                    if item.get("macronutrient_source") or item.get("source_id") == "hpb_sgfoodid":
+                    if item.get("macronutrient_source") or item.get("source_id") in {"hpb_sgfoodid", 'myfcd_1997'}:
                         self.assertGreaterEqual(self.database[key][nutrient], 0)
                     else:
                         self.assertIsNone(self.database[key][nutrient])
@@ -72,6 +73,9 @@ class ReferenceFoodTests(unittest.TestCase):
                 self.assertIn("SG参考", food_label(item["id"]))
                 self.assertIn(item["method"], ["Lab Analysis", "Derived", "Borrowed", "NIP"])
                 for previous in item["replaces"]:
+                    if previous in RESTORED_EXCHANGE_IDS:
+                        self.assertNotIn(previous, HIDDEN_LEGACY_IDS)
+                        continue
                     self.assertIn(previous, HIDDEN_LEGACY_IDS)
                     self.assertNotIn(previous, filter_foods(dict(self.database, **{previous: {}})))
 

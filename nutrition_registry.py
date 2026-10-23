@@ -3,6 +3,7 @@ from copy import deepcopy
 import json
 import math
 from pathlib import Path
+from exchange_foods import EXCHANGE_RECORDS, EXCHANGE_SOURCE, RESTORED_EXCHANGE_IDS
 
 _DATA = json.loads((Path(__file__).parent / "data" / "foods_kkm.json").read_text())
 SOURCE = _DATA["source"]
@@ -10,6 +11,9 @@ REFERENCE_RECORDS = {record["id"]: record for record in _DATA["records"]}
 _SG_DATA = json.loads((Path(__file__).parent / "data" / "foods_hpb_sg.json").read_text())
 SG_SOURCE = _SG_DATA["source"]
 REFERENCE_RECORDS.update({record["id"]: record for record in _SG_DATA["records"]})
+_MY_DATA = json.loads((Path(__file__).parent / 'data' / 'foods_myfcd_ingredients.json').read_text())
+MYFCD_SOURCE = _MY_DATA['source']
+REFERENCE_RECORDS.update({record['id']: record for record in _MY_DATA['records']})
 
 # Keep these IDs and their saved entries readable, but avoid offering their
 # ambiguous/zero-energy records for new logging when better entries exist.
@@ -22,7 +26,8 @@ HIDDEN_LEGACY_IDS = {
     "Tosai (1 piece)",
     "Teh Tarik (1 glass)",
 }
-HIDDEN_LEGACY_IDS.update(key for record in _SG_DATA["records"] for key in record.get("replaces", []))
+HIDDEN_LEGACY_IDS.update(key for record in _SG_DATA["records"] for key in record.get("replaces", [])
+                         if key not in RESTORED_EXCHANGE_IDS)
 
 
 def reference_database():
@@ -50,8 +55,27 @@ def make_food_entry(database, food_id, meal, quantity):
                                    ("Carbs", "Carbs"), ("Fat", "Fat")]:
         value = nutrients[source_key]
         entry[target_key] = None if value is None else value * quantity
+    exchange = EXCHANGE_RECORDS.get(food_id)
+    if exchange:
+        entry['Source'] = dict(exchange.get('source', EXCHANGE_SOURCE), status='food_exchange_estimate',
+            pdf_page=exchange.get('pdf_page'), basis=exchange['basis'],
+            weight_g_per_serving=exchange['weight_g'])
+        if exchange.get('volume_ml'):
+            entry['Source'].update(amount_per_serving=exchange['volume_ml'],portion_unit='ml')
+        if exchange.get('household_measure_basis'):
+            entry['Source']['household_measure_basis'] = exchange['household_measure_basis']
+        return entry
     reference = REFERENCE_RECORDS.get(food_id)
     if reference:
+        if reference.get('source_id') == 'myfcd_1997':
+            entry['Source'] = dict(status='published_nutrition_reference', title=MYFCD_SOURCE['title'],
+                url=reference['source_url'],food_code=reference['food_code'],region='Malaysia',data_year=1997,
+                original_name=reference['original_name'],weight_g_per_serving=reference['weight_g'],
+                amount_per_serving=reference['weight_g'],portion_unit='g',portion_basis='edible_weight',
+                preparation=reference['preparation'],skin_status=reference['skin_status'],
+                preparation_basis=reference['preparation_basis'],
+                per_100g=deepcopy(reference['per_100g']))
+            return entry
         if reference.get("source_id") == "hpb_sgfoodid":
             amount, unit = reference_portion(reference)
             entry["Source"] = {

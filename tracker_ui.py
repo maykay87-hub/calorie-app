@@ -27,6 +27,7 @@ def usage_instructions(demo=False):
     """Use the same compact guide in the demo and the signed-in tracker."""
     save_label = '体验保存 Try save' if demo else '保存当天记录 Save'
     return ('1. **饮食 Food Log：**选日期、餐次、食物与份数 → **Add Meal**。\n'
+            '   「自己搭配」可把饭、肉、菜和油分次加入同一餐；也可直接选整份餐点。\n'
             '2. **运动 Exercise Log：**选运动、填分钟 → **Add activity**。\n'
             f'3. 记录后按 **{save_label}**。\n'
             '4. **Wellness History：**回看记录，或打开某天继续修改。\n\n'
