@@ -1,0 +1,162 @@
+import copy
+import json
+import math
+import unittest
+from nutrition_registry import (SOURCE, REFERENCE_RECORDS, HIDDEN_LEGACY_IDS,
+                                 reference_database, reference_portion, make_food_entry, format_energy)
+from food_catalogue import filter_foods, food_label
+from exchange_foods import RESTORED_EXCHANGE_IDS
+from tracker_storage import load_day, save_day, HEADERS
+from test_tracker_storage import Sheet
+
+
+class ReferenceFoodTests(unittest.TestCase):
+    def setUp(self):
+        self.database = reference_database()
+
+    def test_reference_manifest_has_traceable_portions_and_explicit_missing_macros(self):
+        self.assertEqual(len(REFERENCE_RECORDS), 148)
+        for key, item in REFERENCE_RECORDS.items():
+            with self.subTest(food=key):
+                amount, unit = reference_portion(item)
+                self.assertGreater(amount, 0)
+                self.assertIn(unit, ['g', 'ml'])
+                self.assertGreater(item["energy_kcal"], 0)
+                self.assertTrue(math.isfinite(item["energy_kcal"]))
+                if item.get("source_id") not in {"hpb_sgfoodid", 'myfcd_1997'}:
+                    self.assertTrue(1 <= item["pdf_page"] <= 108)
+                    self.assertIn(item["reference_code"], SOURCE["reference_codes"])
+                self.assertTrue(item["original_name"])
+                for nutrient in ["Prot", "Carbs", "Fat"]:
+                    if item.get("macronutrient_source") or item.get("source_id") in {"hpb_sgfoodid", 'myfcd_1997'}:
+                        self.assertGreaterEqual(self.database[key][nutrient], 0)
+                    else:
+                        self.assertIsNone(self.database[key][nutrient])
+
+    def test_matched_macros_are_scaled_and_source_is_saved(self):
+        matched = [x for x in REFERENCE_RECORDS.values() if x.get("macronutrient_source")]
+        self.assertEqual(len(matched), 6)
+        for item in matched:
+            source = item["macronutrient_source"]
+            raw = source["per_100g"]
+            self.assertLess(abs(raw["Energy"] * item["weight_g"] / 100 - item["energy_kcal"]) / item["energy_kcal"], .025)
+            entry = make_food_entry(self.database, item["id"], "Lunch", .5)
+            self.assertAlmostEqual(entry["Protein"], round(raw["Protein"] * item["weight_g"] / 100, 3) * .5)
+            self.assertEqual(entry["Source"]["macronutrients"]["food_code"], source["food_code"])
+            entry["Source"]["macronutrients"]["title"] = "changed"
+            self.assertEqual(source["title"], "MyFCD 1997")
+
+    def test_soup_and_dry_noodles_are_distinct_portion_specific_records(self):
+        wantan = filter_foods(self.database, query="云吞面")
+        pan = filter_foods(self.database, query="板面")
+        self.assertEqual(len(wantan), 4)
+        self.assertEqual(len(pan), 3)
+        self.assertEqual(sorted(self.database[key]["Cals"] for key in wantan), [300, 440, 625, 631])
+        self.assertEqual(sorted(self.database[key]["Cals"] for key in pan), [602, 655, 678])
+        self.assertEqual(len(filter_foods(self.database, query="chilli pan mee")), 1)
+
+    def test_sg_complete_meals_keep_nutrients_portion_and_region_together(self):
+        records = [x for x in REFERENCE_RECORDS.values() if x.get("source_id") == "hpb_sgfoodid"]
+        self.assertEqual(len(records), 57)
+        for item in records:
+            with self.subTest(food=item["food_code"]):
+                amount, unit = reference_portion(item)
+                edible = amount * item["edible_portion_percent"] / 100
+                raw = item['per_100ml'] if unit == 'ml' else item['per_100g']
+                for raw_key, key in [("energy", "energy_kcal"), ("protein", "protein_g"), ("carbohydrate", "carbs_g"), ("fat", "fat_g")]:
+                    tolerance = .5 * edible / 100 + .5 if raw_key == "energy" else .005 * edible / 100 + .005
+                    self.assertLessEqual(abs(raw[raw_key] * edible / 100 - item[key]), tolerance)
+                entry = make_food_entry(self.database, item["id"], "Lunch", .5)
+                self.assertEqual(entry["Protein"], item["protein_g"] / 2)
+                self.assertEqual(entry["Source"]["region"], "Singapore")
+                self.assertEqual(entry["Source"]["food_code"], item["food_code"])
+                self.assertIn("SG参考", food_label(item["id"]))
+                self.assertIn(item["method"], ["Lab Analysis", "Derived", "Borrowed", "NIP"])
+                for previous in item["replaces"]:
+                    if previous in RESTORED_EXCHANGE_IDS:
+                        self.assertNotIn(previous, HIDDEN_LEGACY_IDS)
+                        continue
+                    self.assertIn(previous, HIDDEN_LEGACY_IDS)
+                    self.assertNotIn(previous, filter_foods(dict(self.database, **{previous: {}})))
+
+    def test_milk_preserves_ml_and_broccoli_uses_explicit_edible_basis(self):
+        milk = next(x for x in REFERENCE_RECORDS.values() if x.get('food_code') == 'F01030010')
+        entry = make_food_entry(self.database, milk['id'], 'Breakfast', 1)
+        self.assertEqual(entry['Source']['portion_unit'], 'ml')
+        self.assertIsNone(entry['Source']['weight_g_per_serving'])
+        self.assertIn('250ml', food_label(milk['id']))
+        self.assertTrue(food_label(milk['id']).endswith('· Low Fat Milk'))
+        self.assertNotIn('per_100g', entry['Source'])
+        broccoli = next(x for x in REFERENCE_RECORDS.values() if x.get('food_code') == 'F14040002')
+        self.assertEqual(broccoli['portion_basis'], 'edible_100g')
+        self.assertEqual(broccoli['energy_kcal'], broccoli['per_100g']['energy'])
+        self.assertEqual(broccoli['edible_portion_percent'], 100)
+
+    def test_dry_and_cooked_oats_have_separate_portions(self):
+        dry = next(x for x in REFERENCE_RECORDS.values() if x.get('food_code') == 'F05080001')
+        cooked = next(x for x in REFERENCE_RECORDS.values() if x.get('food_code') == 'F05080004')
+        self.assertEqual((dry['weight_g'], dry['energy_kcal']), (95, 357))
+        self.assertEqual((cooked['weight_g'], cooked['energy_kcal']), (234, 166))
+        self.assertIn('干', food_label(dry['id']))
+        self.assertIn('煮后', food_label(cooked['id']))
+
+    def test_drink_recipes_and_volumes_are_distinct_without_zero_energy_assumptions(self):
+        by_code = {item.get('food_code'): item for item in REFERENCE_RECORDS.values()}
+        self.assertEqual(reference_portion(by_code['D04020016']), (250, 'ml'))
+        self.assertEqual(reference_portion(by_code['D04020015']), (400, 'ml'))
+        self.assertNotEqual(by_code['D04020016']['energy_kcal'], by_code['D04020015']['energy_kcal'])
+        self.assertGreater(by_code['D09010037']['energy_kcal'], 0)
+        self.assertGreater(by_code['D09010037']['carbs_g'], 0)
+        self.assertEqual(by_code['D02030007']['source_id'], 'hpb_sgfoodid')
+
+    def test_half_portion_scales_energy_and_preserves_unknown_macros_and_source(self):
+        key = "Wantan Mee Dry (1 plate, 330 g; KKM reference)"
+        entry = make_food_entry(self.database, key, "Lunch", 0.5)
+        self.assertEqual(entry["Calories"], 220)
+        self.assertIsNone(entry["Protein"])
+        self.assertIsNone(entry["Carbs"])
+        self.assertIsNone(entry["Fat"])
+        self.assertEqual(entry["Source"]["weight_g_per_serving"], 330)
+        self.assertEqual(entry["Source"]["pdf_page"], 61)
+
+    def test_reference_entry_saves_and_restores_without_losing_unknowns_or_source(self):
+        key = "Pan Mee Soup (1 bowl, 528 g; KKM reference)"
+        entry = make_food_entry(self.database, key, "Lunch", 1)
+        sheet = Sheet([HEADERS])
+        save_day(sheet, "student", "2026-10-18", [entry], [], 475, food_label(key), "None")
+        restored = load_day(sheet, "student", "2026-10-18")
+        self.assertEqual(restored["food_log"], [entry])
+        self.assertIsNone(restored["food_log"][0]["Protein"])
+
+    def test_missing_energy_is_rejected_instead_of_saved_as_zero(self):
+        key = next(iter(self.database))
+        entry = make_food_entry(self.database, key, "Lunch", 1)
+        entry["Calories"] = None
+        with self.assertRaises(ValueError):
+            save_day(Sheet([HEADERS]), "student", "2026-10-18", [entry], [], 0, "", "")
+
+    def test_invalid_quantities_do_not_produce_entries(self):
+        key = next(iter(self.database))
+        for value in [0, -1, float("nan"), float("inf"), True]:
+            with self.assertRaises(ValueError):
+                make_food_entry(self.database, key, "Lunch", value)
+
+    def test_energy_display_preserves_half_calories_and_whole_values(self):
+        self.assertEqual(format_energy(237.5), "237.5")
+        self.assertEqual(format_energy(1000), "1,000")
+        self.assertEqual(format_energy(0), "0")
+
+    def test_hidden_legacy_ids_remain_readable_but_cannot_be_selected(self):
+        legacy = "Nasi Lemak (Standard Hawker)"
+        database = dict(self.database, **{legacy: {"Cals": 440, "Prot": 11, "Carbs": 30, "Fat": 25}})
+        self.assertIn(legacy, HIDDEN_LEGACY_IDS)
+        self.assertNotIn(legacy, filter_foods(database, query="nasi lemak"))
+        old = {"Meal": "Lunch", "Food": legacy, "Qty": 1, "Calories": 440,
+               "Protein": 11, "Carbs": 30, "Fat": 25}
+        sheet = Sheet([HEADERS])
+        save_day(sheet, "student", "2026-10-17", [old], [], 440, "old", "None")
+        self.assertEqual(load_day(sheet, "student", "2026-10-17")["food_log"], [old])
+
+
+if __name__ == "__main__":
+    unittest.main()

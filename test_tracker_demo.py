@@ -1,0 +1,104 @@
+from pathlib import Path
+import unittest
+from unittest.mock import patch
+
+
+class DemoTests(unittest.TestCase):
+    def test_demo_can_compose_meal_from_original_exchanges_and_undo_oil(self):
+        from streamlit.testing.v1 import AppTest
+        with patch('gspread.authorize', side_effect=AssertionError('Demo must never connect to Google')):
+            app = AppTest.from_file(str(Path(__file__).with_name('advancedplus.app.py')), default_timeout=15)
+            app.query_params['demo'] = '1'
+            app.run()
+            for key in ['Rice (1/2 cup)', 'Chicken Drumstick (1 piece)', 'Cooking Oil (1 tsp)']:
+                app.selectbox(key='demo_selected_food_id').set_value(key)
+                next(b for b in app.button if b.label.startswith('Add Meal')).click().run()
+            self.assertFalse(app.exception)
+            self.assertEqual(sum(row['Calories'] for row in app.session_state['demo_foods']), 250)
+            next(b for b in app.button if b.label == '撤销上一笔 · Undo').click().run()
+            self.assertEqual(sum(row['Calories'] for row in app.session_state['demo_foods']), 205)
+
+    def test_exercise_page_stays_selected_after_add_undo_and_save(self):
+        from streamlit.testing.v1 import AppTest
+        app = AppTest.from_file(str(Path(__file__).with_name('advancedplus.app.py')), default_timeout=15)
+        app.query_params['demo'] = '1'
+        app.run()
+        exercise_tab = '🔥 Exercise Log · 运动'
+        app.session_state['demo_tracker_tabs'] = exercise_tab
+        app.run()
+        next(b for b in app.button if b.label.startswith('添加运动')).click().run()
+        self.assertEqual(app.session_state['demo_burned'], 100)
+        self.assertEqual(app.session_state['demo_tracker_tabs'], exercise_tab)
+        next(b for b in app.button if b.label.startswith('撤销上一笔运动')).click().run()
+        self.assertEqual(app.session_state['demo_burned'], 0)
+        self.assertEqual(app.session_state['demo_tracker_tabs'], exercise_tab)
+        next(b for b in app.button if b.label.startswith('添加运动')).click().run()
+        next(b for b in app.button if b.label.startswith('体验保存')).click().run()
+        self.assertEqual(app.session_state['demo_tracker_tabs'], exercise_tab)
+        self.assertFalse(app.exception)
+
+    def test_demo_remarks_pause_remaining_and_can_be_counted_without_google(self):
+        from streamlit.testing.v1 import AppTest
+        with patch('gspread.authorize', side_effect=AssertionError('Demo must never connect to Google')):
+            app = AppTest.from_file(str(Path(__file__).with_name('advancedplus.app.py')), default_timeout=15)
+            app.query_params['demo'] = '1'
+            app.run()
+            next(x for x in app.text_area if x.label.startswith('备注')).set_value('Missing food example')
+            next(b for b in app.button if b.label.startswith('保存示范备注')).click().run()
+            self.assertFalse(app.exception)
+            self.assertTrue(any('Provisional remaining' in x.value for x in app.info))
+            self.assertTrue(any('暂估剩余' in x.value for x in app.markdown))
+            next(b for b in app.button if b.label.startswith('Add Meal')).click().run()
+            next(b for b in app.button if b.label.startswith('体验保存')).click().run()
+            next(b for b in app.button if b.label.startswith('已补齐饮食')).click().run()
+            self.assertTrue(any('kcal remaining' in x.value for x in app.markdown))
+
+    def test_demo_works_without_secrets_or_any_google_connection(self):
+        from streamlit.testing.v1 import AppTest
+        with patch('gspread.authorize', side_effect=AssertionError('Demo must never connect to Google')):
+            app = AppTest.from_file(str(Path(__file__).with_name('advancedplus.app.py')), default_timeout=15)
+            app.query_params['demo'] = '1'
+            app.run()
+            self.assertFalse(app.exception)
+            self.assertFalse(app.text_input)
+            self.assertIn('使用提示 · How to use', [x.label for x in app.expander])
+            guide = next(x.value for x in app.markdown if '今日剩余 = 今日目标' in x.value)
+            for instruction in ('Food Log', 'Exercise Log', 'Try save', 'Wellness History'):
+                self.assertIn(instruction, guide)
+            next(b for b in app.button if b.label.startswith('Add Meal')).click().run()
+            self.assertFalse(app.exception)
+            self.assertEqual(len(app.session_state['demo_foods']), 1)
+            next(b for b in app.button if b.label.startswith('体验保存')).click().run()
+            self.assertTrue(any('不写入云端' in s.value for s in app.success))
+            next(b for b in app.button if b.label.startswith('添加运动')).click().run()
+            self.assertEqual(app.session_state['demo_burned'], 100)
+            next(b for b in app.button if b.label.startswith('重新体验')).click().run()
+            self.assertEqual(app.session_state['demo_foods'], [])
+            self.assertEqual(app.session_state['demo_burned'], 0)
+
+    def test_demo_profile_undo_date_and_saved_history_match_student_flow(self):
+        from datetime import timedelta
+        from streamlit.testing.v1 import AppTest
+        app = AppTest.from_file(str(Path(__file__).with_name('advancedplus.app.py')), default_timeout=15)
+        app.query_params['demo'] = '1'
+        app.run()
+        first = app.date_input(key='demo_date').value
+        app.selectbox(key='demo_activity').set_value('Active (x30)')
+        next(b for b in app.button if b.label.startswith('保存示范资料')).click().run()
+        self.assertEqual(app.session_state['demo_profile']['activity'], 'Active (x30)')
+        self.assertEqual(next(m.value for m in app.metric if 'Demo target' in m.label), '1,800 kcal')
+        next(b for b in app.button if b.label.startswith('Add Meal')).click().run()
+        next(b for b in app.button if b.label == '撤销上一笔 · Undo').click().run()
+        self.assertEqual(app.session_state['demo_foods'], [])
+        next(b for b in app.button if b.label.startswith('Add Meal')).click().run()
+        next(b for b in app.button if b.label.startswith('体验保存')).click().run()
+        self.assertIn(str(first), app.session_state['demo_saved'])
+        self.assertEqual(len(app.get('balloons')), 1)
+        next(b for b in app.button if b.label.startswith('体验保存')).click().run()
+        self.assertEqual(len(app.get('balloons')), 0)
+        app.date_input(key='demo_date').set_value(first - timedelta(days=1)).run()
+        self.assertEqual(app.session_state['demo_foods'], [])
+        next(b for b in app.button if b.label.startswith('打开这一天')).click().run()
+        self.assertEqual(app.date_input(key='demo_date').value, first)
+        self.assertEqual(len(app.session_state['demo_foods']), 1)
+        self.assertFalse(app.exception)

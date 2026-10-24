@@ -1,0 +1,66 @@
+<!doctype html><html lang="zh"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>May Bloom · Layout review</title><style>
+:root { --mb-rose:#b94e73; --mb-ink:#4c3941; }
+.stApp { background:#fffdfd; color:var(--mb-ink); }
+.block-container { max-width:1180px; padding-top:3.4rem; padding-bottom:3rem; }
+[data-testid="stSidebar"] { background:#edf5f5; border-right:1px solid #d5e6e6; }
+[data-testid="stSidebar"] h2,[data-testid="stSidebar"] h3 { color:#376568; }
+.mb-profile-kicker { color:#376568; font-size:.75rem; font-weight:700; letter-spacing:.12em; margin-top:.4rem; }
+.mb-title { font-size:clamp(1.8rem,3.1vw,2.8rem)!important; line-height:1.22!important; font-weight:700; color:#a44b68!important; margin:0 0 1rem!important; padding:0!important; }
+.mb-title span { color:#d15f88; }
+.mb-summary { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:1rem; margin:.45rem 0 1.2rem; }
+.mb-stat { margin:0; padding:1.1rem 1.2rem; border:1px solid #f0d4c3; border-radius:16px; background:#fff3e9; min-width:0; }
+.mb-stat dt { font-size:.95rem; color:#7b4933; font-weight:600; margin:0 0 .55rem; }
+.mb-stat dt span { font-size:.8em; font-weight:400; margin-left:.25rem; }
+.mb-stat dd { font-size:clamp(1.65rem,3vw,2.4rem); font-weight:650; color:#71432f; line-height:1.2; margin:0; overflow-wrap:anywhere; }
+.mb-stat small { font-size:.85rem; font-weight:400; margin-left:.3rem; }
+.mb-stat-exercise { background:#edf6f0; border-color:#cfe2d5; }
+.mb-stat-exercise dt,.mb-stat-exercise dd { color:#36654b; }
+.mb-stat-net { background:#fceaf0; border-color:#eab3c7; }
+.mb-stat-net dt,.mb-stat-net dd { color:#9d3e60; }
+.mb-balance { display:inline-block; margin-top:.65rem; padding:.25rem .6rem; font-size:.8rem; font-weight:600; background:#e2f0e6; border-radius:30px; color:#2d6748; }
+.mb-balance.over { background:#fae4db; color:#974b32; }
+.mb-progress-title { color:#6f535e; font-size:.95rem; font-weight:600; margin:.2rem 0 .5rem; }
+[data-testid="stProgress"] [role="progressbar"]>div { background:#d17493; }
+.mb-remaining { display:flex; gap:.8rem; align-items:center; border:1px solid #cfe6df; background:#edf8f3; border-radius:12px; padding:.8rem 1.1rem; margin:.45rem 0 1rem; color:#2d6748; }
+.mb-remaining strong { font-size:1.65rem; }
+.mb-remaining span { font-size:1rem; }
+.mb-remaining .mb-check { font-size:1.5rem; }
+.mb-remaining.over { border-color:#f0d2bd; background:#fff2e8; color:#8b492d; }
+.mb-section-title { color:#b34c72!important; font-size:1.55rem!important; margin:.7rem 0 .8rem!important; padding:0!important; }
+.mb-section-title small { color:#8b6875; font-size:.85rem; font-weight:400; margin-left:.6rem; }
+[data-testid="stForm"] { background:#fff; border:1px solid #efdce4; border-radius:14px; }
+[data-testid="stTextInput"] input,[data-testid="stNumberInput"] input { color:#4c3941; }
+[data-testid="stSidebar"] [data-baseweb="input"],[data-testid="stSidebar"] [data-baseweb="select"]>div { background:#fff; }
+[data-testid="stTabs"] [role="tablist"] { gap:1.3rem; border-bottom:1px solid #f0dce4; }
+[data-testid="stTabs"] [role="tab"] { min-height:48px; font-weight:600; color:#875669; }
+[data-testid="stTabs"] [role="tab"][aria-selected="true"] { color:#bd4e78; }
+[data-testid="stTabs"] [data-baseweb="tab-highlight"] { background:#cf6d8b; }
+[data-testid="stButton"] button,[data-testid="stFormSubmitButton"] button { min-height:44px; border-radius:10px; }
+[data-testid="stButton"] button[kind="primary"],button[data-testid="baseButton-primary"],[data-testid="stFormSubmitButton"] button { background:#c45f82!important; border-color:#c45f82!important; color:#fff!important; }
+[data-testid="stButton"] button[kind="primary"]:hover,[data-testid="stFormSubmitButton"] button:hover { background:#ac466c!important; border-color:#ac466c!important; }
+[data-testid="stButton"] button:disabled,[data-testid="stFormSubmitButton"] button:disabled { background:#f1e7eb!important; border-color:#e3d4db!important; color:#77646e!important; }
+[data-testid="stSidebar"] button[kind="primary"] { background:#477c7d!important; border-color:#477c7d!important; }
+@media (max-width:640px) {
+ .block-container { padding-left:1rem; padding-right:1rem; padding-top:3.3rem; }
+ .mb-title { font-size:1.85rem!important; }
+ .mb-summary { gap:.45rem; }
+ .mb-stat { padding:.8rem .6rem; border-radius:12px; }
+ .mb-stat dt { font-size:.76rem; min-height:2.4em; margin-bottom:.3rem; }
+ .mb-stat dt span { display:block; margin:.15rem 0 0; font-size:.85em; }
+ .mb-stat dd { font-size:1.55rem; }
+ .mb-stat small { display:block; margin:.15rem 0 0; font-size:.7rem; }
+ .mb-balance { font-size:.66rem; padding:.2rem .35rem; }
+ .mb-remaining { padding:.7rem .8rem; gap:.55rem; }
+ .mb-remaining strong { font-size:1.5rem; }
+ .mb-remaining span { font-size:.88rem; }
+ [data-testid="stTabs"] [role="tablist"] { gap:.2rem; }
+ [data-testid="stTabs"] [role="tab"] { padding-left:.3rem; padding-right:.3rem; }
+ [data-testid="stTabs"] [role="tab"] p { font-size:.78rem; }
+ [data-testid="stForm"] { padding:.8rem; }
+ [data-testid="stForm"] [data-testid="stHorizontalBlock"] { flex-wrap:wrap!important; }
+ [data-testid="stForm"] [data-testid="stColumn"] { flex:1 1 100%!important; width:100%!important; min-width:100%!important; }
+}
+</style><style>
+*{box-sizing:border-box}body{margin:0;font-family:Arial,"Microsoft YaHei",sans-serif;background:#fffdfd;color:#4c3941}.review-note{background:#fff8e6;padding:8px 24px;color:#856936;font-size:12px}.app-layout{display:grid;grid-template-columns:270px minmax(0,1fr);min-height:900px}.profile{background:#edf5f5;padding:32px 25px;border-right:1px solid #d5e6e6}.profile h2{color:#376568;margin:18px 0 36px}.profile h3{color:#376568;font-size:20px;margin:28px 0}.profile label{display:block;font-size:14px;margin:22px 0 9px}.profile input,.profile select{width:100%;padding:13px;background:white;border:1px solid #dce8e8;border-radius:9px;font-size:16px;color:#4c3941}.profile button{background:#477c7d;color:white;border:0;border-radius:10px;width:100%;padding:14px;margin-top:22px;font-size:15px}.profile hr{border:0;border-top:1px solid #cfe1e1;margin:28px 0}.bmi{background:#deeee4;padding:14px;border-radius:10px;color:#3a6c51;font-size:14px}.target{color:#376568;margin-top:25px}.target strong{font-size:30px;display:block;margin-top:10px}.main{padding:34px 38px 38px;max-width:1140px;width:100%;margin:auto}.date-label{font-size:14px;margin:22px 0 8px}.date-input{padding:13px 16px;background:#f8f0f3;border:1px solid #efdee6;border-radius:9px;color:#594650}.how{margin:14px 0;padding:12px 15px;border:1px solid #eedfe5;border-radius:10px;font-size:14px}.progress{height:8px;background:#f5e9ef;border-radius:5px;overflow:hidden}.progress i{display:block;background:#d17493;height:100%;width:59%}.save{background:#c45f82;color:white;border:0;border-radius:10px;padding:13px 24px;font-size:16px;width:100%;margin:5px 0 24px}.tabs{display:flex;gap:26px;border-bottom:1px solid #edd6df}.tabs span{padding:12px 1px 14px;font-size:15px;color:#875669;font-weight:600}.tabs .active{color:#bd4e78;border-bottom:3px solid #cf6d8b}.food-form{display:grid;grid-template-columns:1.2fr 3.2fr 1fr 1.25fr;gap:12px;padding:20px;background:#fff;border:1px solid #efdce4;border-radius:14px;align-items:end}.food-form label{display:block;font-size:13px;margin-bottom:9px;color:#624c55}.field{padding:13px 10px;border-radius:8px;background:#f8f1f4;min-height:45px;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.add{padding:13px 8px;background:#c45f82;color:white;border:0;border-radius:9px;font-size:14px;min-height:45px}.empty{padding:28px;text-align:center;color:#9a7c89;font-size:14px}.more{padding:14px 16px;border:1px solid #ecdde4;border-radius:10px;color:#876572;font-size:14px}.footer{font-size:12px;color:#ab8b98;text-align:center;margin-top:28px}
+body.desktop{min-width:1250px}.desktop .main{min-width:900px}.mobile .app-layout{display:block;min-height:0}.mobile .profile{display:none}.mobile .main{padding:26px 16px;max-width:500px}.mobile .food-form{display:grid;grid-template-columns:1fr;gap:14px;padding:16px}.mobile .mb-title{font-size:30px!important}.mobile .mb-summary{gap:6px}.mobile .mb-stat{padding:12px 9px}.mobile .mb-stat dt{font-size:12px;min-height:29px}.mobile .mb-stat dd{font-size:25px}.mobile .mb-stat small{display:block;margin:4px 0 0;font-size:11px}.mobile .mb-balance{font-size:11px}.mobile .tabs{gap:12px}.mobile .tabs span{font-size:12px}.mobile .mb-section-title{font-size:22px!important}.mobile .empty{padding:20px}.mobile .footer{line-height:1.6}
+</style></head><body class="desktop"><div class="review-note">MAY BLOOM · 版式预览 / 示例数据</div><div class="app-layout"><aside class="profile"><div class="mb-profile-kicker">MY PROFILE · 个人资料</div><h2>👤 May Bloom</h2><hr><h3>个人资料 · Profile</h3><label>身高 Height (cm)</label><input value="160.00"><label>体重 Weight (kg)</label><input value="70.00"><label>活动水平 Activity level</label><select><option>Sedentary (x25)</option></select><button>保存个人资料 · Save profile</button><hr><div class="bmi">BMI · 资料确认后显示</div><div class="target">🔥 Daily Target<strong>1,493 kcal</strong></div></aside><main class="main"><h1 class="mb-title"><span>🌸 May Bloom</span> Lifestyle Tracker</h1><div class="date-label">📅 Date of Entry · 记录日期</div><div class="date-input">2026 / 10 / 19 <span style="float:right">▦</span></div><div class="how">› &nbsp; 使用提示 · How to use</div><div class="mb-summary" role="group" aria-label="每日热量 Daily calories"><dl class="mb-stat"><dt>🍽️ Food Intake <span>摄入</span></dt><dd>880<small>kcal</small></dd></dl><dl class="mb-stat mb-stat-exercise"><dt>🔥 Exercise Burn <span>消耗</span></dt><dd>0<small>kcal</small></dd></dl><dl class="mb-stat mb-stat-net"><dt>⚖️ Net Calories <span>净值</span></dt><dd>880<small>kcal</small></dd><div class="mb-balance">613 left</div></dl></div><div class="mb-progress-title">Daily Energy Progress · 今日热量进度</div><div class="progress"><i></i></div><div class="mb-remaining" role="status"><span class="mb-check">✓</span><div><strong>613</strong> <span>kcal remaining · 今日剩余</span></div></div><button class="save">保存当天记录 · Save</button><nav class="tabs"><span class="active">🍽️ Food Log · 饮食</span><span>🔥 Exercise Log · 运动</span><span>📜 Wellness History · 历史</span></nav><h2 class="mb-section-title">🍽️ Food Log <small>饮食记录</small></h2><div class="food-form"><div><label>餐次 · Meal</label><div class="field">早餐 Breakfast ⌄</div></div><div><label>食物 · Food Item</label><div class="field">椰浆饭 · Nasi Lemak（1盘） ⌄</div></div><div><label>份数 · Servings</label><div class="field">1.00</div></div><button class="add">Add Meal ＋</button></div><div class="empty">选择食物与份量，按 Add Meal 即可。</div><div class="more">› &nbsp; 更多选项 · More options</div><div class="footer">版式预览 · 示范数值，非个人饮食记录</div></main></div></body></html>
