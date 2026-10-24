@@ -39,8 +39,21 @@ class Settings:
     booking_lead_seconds: int = 86400
     task_queue: str = ''
     renewal_enabled: bool = False
+    consultation_checkout_enabled: bool = False
+    intake_enabled: bool = False
+    intake_privacy_url: str = ''
+    intake_consent_version: str = ''
 
     def validate(self):
+        if self.intake_enabled:
+            privacy=urlparse(self.intake_privacy_url)
+            if (privacy.scheme!='https' or not privacy.netloc or privacy.username or privacy.password
+                    or not self.intake_consent_version or len(self.intake_consent_version)>80):
+                raise ValueError('Intake requires a reviewed HTTPS privacy notice and consent version.')
+        if self.consultation_checkout_enabled and not self.booking_enabled:
+            raise ValueError('Consultation checkout requires booking to be enabled.')
+        if self.consultation_checkout_enabled and not self.intake_enabled:
+            raise ValueError('Consultation checkout requires the private preparation form.')
         if self.task_queue and (not re.fullmatch(r'projects/[a-zA-Z0-9_-]+/locations/[a-z0-9-]+/queues/[a-zA-Z0-9_-]+', self.task_queue)
                                or not self.public_url.startswith('https://')):
             raise ValueError('Job dispatch requires a Cloud Tasks queue path and HTTPS service origin.')
@@ -86,4 +99,8 @@ class Settings:
             booking_lead_seconds=int(os.getenv('MB_BOOKING_LEAD_SECONDS','86400')),
             task_queue=os.getenv('MB_TASK_QUEUE',''),
             renewal_enabled=os.getenv('MB_RENEWAL_ENABLED') == 'true',
+            consultation_checkout_enabled=os.getenv('MB_CONSULTATION_CHECKOUT_ENABLED') == 'true',
+            intake_enabled=os.getenv('MB_INTAKE_ENABLED') == 'true',
+            intake_privacy_url=os.getenv('MB_INTAKE_PRIVACY_URL',''),
+            intake_consent_version=os.getenv('MB_INTAKE_CONSENT_VERSION',''),
         )

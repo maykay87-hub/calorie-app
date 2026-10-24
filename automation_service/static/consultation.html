@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="zh-Hans"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>预约咨询 · May Bloom Wellness</title><link rel="stylesheet" href="/static/portal.css"><script defer src="/static/consultation.js"></script></head>
+<body><main><header><a class="brand" href="https://maybloomwellness.com/">✿ May Bloom</a><p>临床饮食治疗师 · Clinical Dietitian</p></header>
+<p id="notice" role="status" aria-live="polite"></p>
+<section id="booking"><p class="eyebrow">选择时间 → 安全付款 → 会前准备</p><h1>预约你的线上咨询<br><span class="hint">Book your online consultation</span></h1><p>每次45分钟 · Google Meet · 马来西亚时间<br><span class="hint">45 minutes · All times are Malaysia time (MYT).</span></p>
+<form id="purchase-form" hidden>
+<label for="plan">咨询配套 · Package</label><select id="plan" required><option value="consultation-initial">单次咨询 · 1 session — RM199</option><option value="consultation-three-months">3个月 · 3 sessions — RM699 total</option><option value="consultation-six-months">6个月 · 6 sessions — RM999 total</option></select>
+<p id="inclusions" class="hint"></p>
+<label for="date">选择日期 · Date</label><input id="date" type="date" required><p class="hint">仅显示已开放日期的可用时段。<br>Available times appear after you choose an open date.</p>
+<fieldset><legend>选择时段 · Time (MYT)</legend><div id="times" class="slot-list"></div></fieldset>
+<label for="purchase-email">你的邮箱 · Your email</label><input id="purchase-email" type="email" autocomplete="email" maxlength="254" required><p class="hint">付款后，请用此邮箱接收账号开通与预约邮件。<br>Use this email for your payment, account activation and booking confirmation.</p>
+<p id="selection" aria-live="polite"></p><button type="submit">前往 Stripe 付款 · Continue to payment</button><p class="hint">选定时段后保留最多60分钟；付款成功才确认预约。<br>Your time is held for up to 60 minutes. The appointment is confirmed only after successful payment.</p>
+</form><p id="closed" hidden>预约付款尚未开放，请稍后再查看。<br>Online booking payment is not open yet.</p></section>
+<section id="payment-status" class="inner" hidden><h2>付款与预约状态 · Booking status</h2><p id="payment-message"></p><a id="prepare-link" class="button" href="/intake" hidden>填写会前问卷 · Prepare for your visit</a><button id="resume-payment" class="secondary" type="button" hidden>继续付款 · Resume payment</button><button id="refresh-payment" class="secondary" type="button">刷新状态 · Refresh status</button><p class="hint">付款后请查看邮箱的账号开通链接。会前问卷需登入；邮件未收到时，可在登入页重新申请开通邮件。<br>After payment, check your activation email. Sign in to complete preparation; request a new activation email if needed.</p></section>
+<footer><a href="/">已购买？登入会员服务 · Already purchased? Sign in</a></footer></main></body></html>

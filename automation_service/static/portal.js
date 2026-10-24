@@ -14,6 +14,7 @@ async function member(){
   const me=await api('/api/me');$('login').hidden=true;$('activate').hidden=true;$('member').hidden=false;
   $('coach').hidden=!me.is_coach;$('member-cards').hidden=!!me.is_coach;$('member-title').textContent=me.is_coach?'May 的预约管理':'欢迎回来';
   $('student-booking').hidden=!!me.is_coach;
+  $('intake-link').hidden=me.is_coach||!me.intake_enabled||!me.appointments.length;
   if(me.is_coach){await coachSummary();return;}
   $('access-status').textContent=me.active?'使用中 · Active':'暂未开通／已到期';
   $('access-end').textContent=me.ends_at?'有效至 · Until '+dateText(me.ends_at):'查看账单或联系 May · Check billing or contact May';
@@ -37,7 +38,12 @@ async function coachSummary(){
   const summary=await api('/api/coach/summary');const accounts=new Map(summary.accounts.map(a=>[a.id,a]));const slots=new Map(summary.slots.map(s=>[s.id,s]));
   $('coach-slots').replaceChildren();for(const slot of summary.slots.filter(s=>s.status==='available').sort((a,b)=>a.starts_at-b.starts_at)){const row=document.createElement('p');row.className='appointment';row.textContent=dateText(slot.starts_at)+' ';const button=document.createElement('button');button.type='button';button.className='text-button';button.textContent='关闭此时段 · Close';button.addEventListener('click',()=>action(button,async()=>{await api('/api/coach/close-slot',{slot_id:slot.id});await coachSummary();}));row.append(button);$('coach-slots').append(row);}
   if(!$('coach-slots').children.length)$('coach-slots').textContent='暂无开放时段 · No published slots';
-  $('coach-bookings').replaceChildren();for(const booking of summary.appointments){const slot=slots.get(booking.slot_id);const row=document.createElement('p');row.className='appointment';row.textContent=(accounts.get(booking.account_id)?.email||'Member')+' · '+dateText(slot.starts_at);$('coach-bookings').append(row);}
+  $('coach-bookings').replaceChildren();for(const booking of summary.appointments){const slot=slots.get(booking.slot_id);const row=document.createElement('p');row.className='appointment';row.textContent=(accounts.get(booking.account_id)?.email||'Member')+' · '+dateText(slot.starts_at)+' ';
+    const preparation=document.createElement('button');preparation.type='button';preparation.className='text-button';preparation.textContent='查看会前资料 · Preparation';
+    preparation.addEventListener('click',()=>action(preparation,async()=>{const result=await api('/api/coach/intake/'+encodeURIComponent(booking.id));const panel=$('coach-intake-content');panel.replaceChildren();$('coach-intake').hidden=false;
+      if(!result.versions.length)panel.textContent='尚未提交 · Not submitted yet';
+      const labels={preferred_name:'称呼 · Name',phone:'电话 · Phone',age:'年龄 · Age',sex:'生理性别 · Sex',height_cm:'身高 · Height (cm)',weight_kg:'体重 · Weight (kg)',goals:'目标 · Goals',medical_history:'病史 · History',medicines:'药物／补充品 · Medicines',allergies:'过敏 · Allergies',activity:'活动 · Activity',relevant_context:'其他情况 · Other details'};
+      for(const version of result.versions){const details=document.createElement('details');details.open=panel.children.length===0;const title=document.createElement('summary');title.textContent=dateText(version.submitted_at)+' · Version '+version.version;details.append(title);for(const [key,value] of Object.entries(version.answers)){const line=document.createElement('p');line.textContent=(labels[key]||key)+': '+(value??'');details.append(line);}panel.append(details);}}));row.append(preparation);$('coach-bookings').append(row);}
   if(!$('coach-bookings').children.length)$('coach-bookings').textContent='暂无预约 · No bookings';
   $('coach-issues').replaceChildren();for(const issue of summary.issues){const row=document.createElement('p');row.textContent=issue.kind+' · '+issue.id;$('coach-issues').append(row);}
   const failed=summary.mail.filter(m=>m.status==='uncertain').length;const line=document.createElement('p');line.textContent=failed?'待检查邮件 · Uncertain email deliveries: '+failed:'暂无邮件异常 · No email exceptions';$('coach-issues').append(line);

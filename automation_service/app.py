@@ -2,6 +2,7 @@ from pathlib import Path
 import hmac
 from urllib.parse import urlparse
 from fastapi import FastAPI, Request, HTTPException
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.concurrency import run_in_threadpool
@@ -15,6 +16,9 @@ from .mail import MailSender
 from .jobs import JobDispatcher
 from .security import digest
 from .renewals import RenewalService
+from .consultation_checkout import ConsultationCheckout
+from .intake import IntakeService, IntakeSubmission
+from .security import random_token
 
 class Credentials(BaseModel):
     model_config=ConfigDict(extra='forbid')
@@ -37,12 +41,20 @@ class LegacyLogin(BaseModel): username: str=Field(min_length=1,max_length=100)
 class RenewalConsent(BaseModel):
     model_config=ConfigDict(extra='forbid', strict=True)
     agreed: bool
+class ConsultationPurchase(BaseModel):
+    model_config=ConfigDict(extra='forbid',strict=True)
+    email: str=Field(min_length=3,max_length=254)
+    plan: str=Field(min_length=1,max_length=60)
+    slot_id: str=Field(min_length=1,max_length=64)
+    request_id: str=Field(min_length=8,max_length=100)
 
 def create_app(settings=None,store=None,gateway=None,sender=None,clock=None,job_dispatcher=None):
     settings=settings or Settings.from_env()
     service=Service(store or Store(settings.database_url),settings,**({'clock':clock} if clock else {}))
     gateway=gateway or StripeGateway(settings)
     renewal_service=RenewalService(service,gateway)
+    consultation=ConsultationCheckout(service,gateway)
+    intake=IntakeService(service)
     sender=sender or MailSender(settings)
     job_dispatcher=job_dispatcher or JobDispatcher(settings)
     app=FastAPI(title='May Bloom member services',docs_url=None,redoc_url=None,openapi_url=None)
@@ -61,6 +73,10 @@ def create_app(settings=None,store=None,gateway=None,sender=None,clock=None,job_
     async def rule_error(_,exc): return JSONResponse({'error':exc.message},status_code=exc.status)
     @app.exception_handler(ValueError)
     async def value_error(_,exc): return JSONResponse({'error':'资料无法确认，请重试。 Please check your details.'},status_code=400)
+    @app.exception_handler(RequestValidationError)
+    async def validation_error(_,exc):
+        # Do not echo passwords or health answers in validation payloads.
+        return JSONResponse({'error':'请检查填写格式及必填资料。 Please check required fields and formats.'},status_code=422)
 
     @app.middleware('http')
     async def secure(request,call_next):
@@ -93,7 +109,50 @@ def create_app(settings=None,store=None,gateway=None,sender=None,clock=None,job_
     def health(): return {'ok':True,'live':settings.live,'booking_enabled':settings.booking_enabled}
     @app.get('/')
     def portal(): return FileResponse(static/'index.html')
+    @app.get('/consultation')
+    def consultation_page(): return FileResponse(static/'consultation.html')
+    @app.get('/intake')
+    def intake_page(): return FileResponse(static/'intake.html')
     app.mount('/static',StaticFiles(directory=static),name='static')
+
+    @app.get('/api/consultation')
+    def consultation_slots(request:Request):
+        response=JSONResponse(consultation.available())
+        if not request.cookies.get('mb_checkout_browser'):
+            response.set_cookie('mb_checkout_browser',random_token(),httponly=True,secure=settings.production,
+                                samesite='lax',max_age=86400,path='/')
+        return response
+    @app.get('/api/consultation/status')
+    def consultation_status(request:Request):
+        return consultation.status(request.cookies.get('mb_checkout_browser',''))
+    @app.post('/api/consultation/checkout')
+    def consultation_payment(body:ConsultationPurchase,request:Request):
+        owner=request.cookies.get('mb_checkout_browser','')
+        if len(owner)<20: raise HTTPException(400,'Please reload the booking page.')
+        with service.store.write() as c:
+            # Persist rate accounting even when a provider/network request fails.
+            allowed=service._rate(c,request.client.host if request.client else 'unknown','public-checkout',30)
+        if not allowed: raise HTTPException(429,'Please retry later.')
+        try: return consultation.checkout(owner,body.email,body.plan,body.slot_id,body.request_id)
+        except (RuleError,ValueError): raise
+        except Exception: raise HTTPException(503,'付款链接暂时无法确认，请稍后重试。 Checkout temporarily unavailable; retry the same request.')
+    @app.post('/api/consultation/resume')
+    def consultation_resume(request:Request):
+        owner=request.cookies.get('mb_checkout_browser','')
+        if len(owner)<20: raise HTTPException(400,'Please reload the booking page.')
+        with service.store.write() as c:
+            allowed=service._rate(c,request.client.host if request.client else 'unknown','public-checkout',30)
+        if not allowed: raise HTTPException(429,'Please retry later.')
+        try: return consultation.resume(owner)
+        except (RuleError,ValueError): raise
+        except Exception: raise HTTPException(503,'付款链接暂时无法确认，请稍后重试。 Checkout temporarily unavailable.')
+    @app.get('/api/intake/{booking_id}')
+    def intake_get(booking_id:str,request:Request): return intake.get(session(request),booking_id)
+    @app.post('/api/intake')
+    def intake_submit(body:IntakeSubmission,request:Request):
+        result=intake.submit(session(request),body);dispatch_jobs('intake:'+body.request_id);return result
+    @app.get('/api/coach/intake/{booking_id}')
+    def intake_coach(booking_id:str,request:Request): return intake.coach_get(session(request),booking_id)
 
     @app.post('/api/request-activation')
     def activation_request(body:EmailInput):
@@ -170,6 +229,9 @@ def create_app(settings=None,store=None,gateway=None,sender=None,clock=None,job_
             if kind in {'checkout.session.completed','checkout.session.async_payment_succeeded'}:
                 result=service.fulfill(eid,kind,gateway.checkout(obj['id'],at))
             elif kind=='invoice.paid': result=service.fulfill(eid,kind,gateway.invoice(obj['id'],at))
+            elif kind=='checkout.session.expired':
+                consultation.expire(gateway.consultation_state(obj['id']))
+                result=service.fulfill(eid,kind,None)
             elif kind in {'customer.subscription.updated','customer.subscription.deleted'}:
                 result=service.reconcile_subscription(eid,kind,gateway.subscription(obj['id'],at))
             else:
@@ -185,6 +247,8 @@ def create_app(settings=None,store=None,gateway=None,sender=None,clock=None,job_
     def summary(request:Request): admin(request); return service.admin_summary()
     @app.post('/admin/slots')
     def publish_slot(body:SlotInput,request:Request): admin(request); return {'slot_id':service.publish_slot(body.starts_at)}
+    @app.post('/admin/approved-slots')
+    def approved_slots(request:Request): admin(request);return service.publish_approved_slots()
     @app.post('/admin/close-slot')
     def close_slot(body:CloseSlot,request:Request): admin(request); service.close_slot(body.slot_id); return {'ok':True}
     @app.post('/admin/run-jobs')
@@ -192,6 +256,7 @@ def create_app(settings=None,store=None,gateway=None,sender=None,clock=None,job_
         admin(request)
         if not settings.smtp_host and isinstance(sender,MailSender): raise HTTPException(503,'Email is not configured')
         service.enqueue_reminders()
+        if settings.consultation_checkout_enabled: consultation.sweep()
         return {'sent':service.deliver_pending(sender)}
     @app.get('/api/coach/summary')
     def coach_summary(request:Request): service.coach_authorized(session(request)); return service.admin_summary()
