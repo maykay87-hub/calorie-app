@@ -11,7 +11,7 @@ from sqlalchemy import select, delete, update
 from .config import PLANS
 from .security import email_key, digest, password_hash, password_matches, random_token
 from .store import (accounts, customers, grants, subscriptions, events, tokens, outbox,
-                    slots, bookings, limits, issues, one, rows)
+                    slots, bookings, limits, issues, consultation_holds, intakes, one, rows)
 
 class RuleError(Exception):
     def __init__(self, message, status=400): self.message, self.status = message, status
@@ -184,7 +184,9 @@ class Service:
                     'plans':sorted(set(g['plan'] for g in active)),
                     'appointments':sorted(appointments,key=lambda b:b['starts_at']),
                     'tracker_url':self.settings.tracker_url,'billing_portal_url':self.settings.billing_portal_url,
-                    'booking_enabled':self.settings.booking_enabled}
+                    'booking_enabled':self.settings.booking_enabled,
+                    'intake_enabled':self.settings.intake_enabled,
+                    'intake_privacy_url':self.settings.intake_privacy_url}
 
     def fulfill(self,event_id,kind,paid):
         """Only canonical objects supplied by the verified Stripe gateway enter here."""
@@ -204,12 +206,38 @@ class Service:
                         self._start(c,data,paid['paid_at'] if self.settings.package_start_policy=='payment' else self.now())
                     self._queue(c,'purchase:'+paid['source_id'],{'to':account['email'],'kind':'purchase',
                         'subject':'May Bloom · 服务已记录 / Your service is ready',
-                        'body':f"已记录你的方案：{plan_id}。\nYour service has been recorded.\n\n登入或申请开通 / Sign in or request activation:\n{self.settings.public_url}\n\n咨询预约仅显示已开放的时段。Consultations use published availability."})
+                        'body':f"已记录你的方案：{plan_id}。\nYour service has been recorded.\n\n登入或申请开通 / Sign in or request activation:\n{self.settings.public_url}\n\n咨询预约状态请登入查看。Sign in to view your consultation status."})
                     if not account['verified_at']: self._activation(c,account)
+                if paid.get('hold_id'):
+                    self._complete_hold(c, paid, account)
                 if paid.get('subscription_state'):
                     self._subscription(c,paid['subscription_state'])
             c.execute(events.insert().values(id=event_id,kind=kind,processed_at=self.now()))
         return 'processed'
+
+    def _complete_hold(self,c,paid,account):
+        hold=one(c,consultation_holds,consultation_holds.c.id==paid['hold_id'])
+        if hold and hold['status']=='booked' and hold['checkout_id']==paid['source_id'].removeprefix('cs:'):
+            return
+        slot=one(c,slots,slots.c.id==hold['slot_id']) if hold else None
+        sid=paid['source_id'].removeprefix('cs:')
+        if (not hold or hold['status']!='pending' or not slot or slot['status']!='held'
+                or (hold['checkout_id'] and hold['checkout_id']!=sid)
+                or hold['plan']!=paid['plan'] or hold['email']!=account['email']
+                or slot['starts_at']<=self.now()):
+            # Preserve paid access and money evidence, but never displace another booking.
+            key='paid-hold:'+sid
+            if not one(c,issues,issues.c.id==key):
+                c.execute(issues.insert().values(id=key,kind='paid_consultation_needs_review',created_at=self.now()))
+            if hold and hold['status']=='pending':
+                c.execute(consultation_holds.update().where(consultation_holds.c.id==hold['id']).values(
+                    status='review',checkout_id=sid))
+            return
+        grant=one(c,grants,grants.c.id==paid['source_id'])
+        if grant['credits']<=0: raise RuleError('Paid consultation credit missing.',409)
+        bid=self._create_booking(c,account,slot,grant,'checkout:'+hold['id'])
+        c.execute(consultation_holds.update().where(consultation_holds.c.id==hold['id']).values(
+            status='booked',checkout_id=sid,booking_id=bid))
 
     def _subscription(self,c,state):
         old=one(c,subscriptions,subscriptions.c.id==state['id'])
@@ -250,11 +278,26 @@ class Service:
             c.execute(slots.insert().values(id=sid,starts_at=start,ends_at=end,status='available'))
         return sid
 
+    def publish_approved_slots(self):
+        """Publish only approved candidates; never reopen closed/held/booked slots."""
+        from .availability import candidate_slots
+        created=skipped=0
+        with self.store.write() as c:
+            for start,_ in candidate_slots():
+                start=int(start.timestamp());end=start+2700
+                if (start<self.now()+self.settings.booking_lead_seconds
+                        or one(c,slots,slots.c.starts_at==start)
+                        or one(c,slots,slots.c.status!='closed',slots.c.starts_at<end+900,slots.c.ends_at+900>start)):
+                    skipped+=1;continue
+                c.execute(slots.insert().values(id=uuid4().hex,starts_at=start,ends_at=end,status='available'))
+                created+=1
+        return {'created':created,'skipped':skipped,'timezone':'Asia/Kuala_Lumpur'}
+
     def close_slot(self,slot_id):
         with self.store.write() as c:
             slot=one(c,slots,slots.c.id==slot_id)
             if not slot: raise RuleError('Slot not found.',404)
-            if slot['status']=='booked': raise RuleError('已有预约；请先与学员确认改期。 Slot is booked; arrange the change with the member.',409)
+            if slot['status'] in {'booked','held'}: raise RuleError('时段已有预约或付款保留。 Slot is booked or held for payment.',409)
             c.execute(slots.update().where(slots.c.id==slot_id).values(status='closed'))
 
     def available_slots(self,token):
@@ -279,21 +322,26 @@ class Service:
                 raise RuleError('该时段已不可用，请重选。 Slot unavailable.',409)
             eligible=[g for g in self._active(c,account['id']) if g['credits']>0 and slot['starts_at']<g['ends_at']]
             if not eligible: raise RuleError('没有可用的咨询次数。 No eligible consultation credit.',403)
-            grant=min(eligible,key=lambda g:g['ends_at']); bid=uuid4().hex
-            c.execute(slots.update().where(slots.c.id==slot_id).values(status='booked'))
-            c.execute(grants.update().where(grants.c.id==grant['id']).values(credits=grant['credits']-1))
-            c.execute(bookings.insert().values(id=bid,slot_id=slot_id,account_id=account['id'],grant_id=grant['id'],request_id=request_id,created_at=self.now()))
-            time_text=datetime.fromtimestamp(slot['starts_at'],ZoneInfo('Asia/Kuala_Lumpur')).strftime('%Y-%m-%d %H:%M MYT')
-            self._queue(c,'booking:'+bid,{'to':account['email'],'kind':'booking','booking_id':bid,
+            return self._create_booking(c,account,slot,min(eligible,key=lambda g:g['ends_at']),request_id)
+
+    def _create_booking(self,c,account,slot,grant,request_id):
+        bid=uuid4().hex
+        c.execute(slots.update().where(slots.c.id==slot['id']).values(status='booked'))
+        c.execute(grants.update().where(grants.c.id==grant['id']).values(credits=grant['credits']-1))
+        c.execute(bookings.insert().values(id=bid,slot_id=slot['id'],account_id=account['id'],grant_id=grant['id'],request_id=request_id,created_at=self.now()))
+        time_text=datetime.fromtimestamp(slot['starts_at'],ZoneInfo('Asia/Kuala_Lumpur')).strftime('%Y-%m-%d %H:%M MYT')
+        preparation=(f"\n\n会前问卷（请先登入或开通账号） / Pre-consultation questionnaire (sign in or activate first):\n{self.settings.public_url}/intake"
+                     if self.settings.intake_enabled else '')
+        self._queue(c,'booking:'+bid,{'to':account['email'],'kind':'booking','booking_id':bid,
+            'starts_at':slot['starts_at'],'ends_at':slot['ends_at'],
+            'subject':'May Bloom · 预约确认 / Consultation confirmed',
+            'body':f"你的45分钟线上咨询已预约。\nYour 45-minute online consultation is booked.\n\n时间 / Time: {time_text}\n\n会员页面 / Member page:\n{self.settings.public_url}{preparation}\n\n会议链接将由 May 另行提供。May will provide the meeting link separately."})
+        if self.settings.coach_email:
+            self._queue(c,'coach-booking:'+bid,{'to':self.settings.coach_email,'kind':'coach_booking','booking_id':bid,
                 'starts_at':slot['starts_at'],'ends_at':slot['ends_at'],
-                'subject':'May Bloom · 预约确认 / Consultation confirmed',
-                'body':f"你的45分钟线上咨询已预约。\nYour 45-minute online consultation is booked.\n\n时间 / Time: {time_text}\n\n会员页面 / Member page:\n{self.settings.public_url}\n\n会议链接将由 May 另行提供。May will provide the meeting link separately."})
-            if self.settings.coach_email:
-                self._queue(c,'coach-booking:'+bid,{'to':self.settings.coach_email,'kind':'coach_booking','booking_id':bid,
-                    'starts_at':slot['starts_at'],'ends_at':slot['ends_at'],
-                    'subject':'May Bloom · 新咨询预约 / New consultation booking',
-                    'body':f"学员 / Member: {account['email']}\n时间 / Time: {time_text}\n时长 / Duration: 45 minutes\n\n请提供线上会议链接。Please provide the meeting link."})
-            return bid
+                'subject':'May Bloom · 新咨询预约 / New consultation booking',
+                'body':f"学员 / Member: {account['email']}\n时间 / Time: {time_text}\n时长 / Duration: 45 minutes\n\n请提供线上会议链接。Please provide the meeting link."})
+        return bid
 
     def enqueue_reminders(self):
         with self.store.write() as c:

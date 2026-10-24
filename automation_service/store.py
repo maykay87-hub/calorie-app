@@ -48,6 +48,25 @@ renewals = Table('mb_renewal_checkouts', meta,
     Column('request_key', String(64), nullable=False), Column('created_at', Integer, nullable=False),
     Column('expires_at', Integer, nullable=False), Column('checkout_id', String(160)), Column('customer_id', String(128)),
     Column('checkout_url', Text))
+consultation_holds = Table('mb_consultation_holds', meta,
+    Column('id', String(64), primary_key=True),
+    Column('slot_id', String(64), ForeignKey('mb_slots.id'), nullable=False),
+    Column('owner_hash', String(64), nullable=False),
+    Column('request_id', String(100), nullable=False),
+    Column('email', String(320), nullable=False), Column('plan', String(60), nullable=False),
+    Column('created_at', Integer, nullable=False), Column('expires_at', Integer, nullable=False),
+    Column('status', String(24), nullable=False), Column('checkout_id', String(160), unique=True),
+    Column('checkout_url', Text), Column('booking_id', String(64)),
+    UniqueConstraint('owner_hash', 'request_id'))
+intakes = Table('mb_consultation_intakes', meta,
+    Column('id', String(64), primary_key=True),
+    Column('account_id', String(64), ForeignKey('mb_accounts.id'), nullable=False),
+    Column('booking_id', String(64), ForeignKey('mb_bookings.id'), nullable=False),
+    Column('request_id', String(100), nullable=False),
+    Column('payload', Text, nullable=False), Column('created_at', Integer, nullable=False),
+    Column('version', Integer, nullable=False),
+    Column('consent_version', String(80), nullable=False),
+    UniqueConstraint('account_id', 'request_id'))
 
 class Store:
     def __init__(self, url):

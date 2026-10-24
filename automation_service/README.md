@@ -4,6 +4,12 @@ This service is separate from Streamlit. It is **not deployed** and live fulfill
 
 ## Implemented
 
+- Development addition (2026-10-24): slot-first consultation checkout with a
+  server-side hold, idempotent Stripe Session, atomic paid-webhook booking and
+  credit debit, expired-session recovery, and private post-payment preparation.
+  Both new release gates remain false. See
+  [booking window and deployment checks](../docs/consultation-booking-window-2026.md).
+
 - Signed Stripe webhooks with environment checks, canonical API reads, exact approved-price mapping and atomic deduplication by event and fulfilled payment object.
 - Monthly access comes from paid invoice periods, not a guessed 30-day extension. Subscription cancellation is reconciled against Stripe; a stale event cannot reopen ended access. A failed renewal flags an operator issue without removing already-paid access or health records.
 - One-time RM199 / RM699 / RM999 packages with 1 / 3 / 6 consultation credits and 7 days / 3 months / 6 months of Tracker access. They never become recurring subscriptions.

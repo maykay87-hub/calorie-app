@@ -83,10 +83,42 @@ class StripeGateway:
         if not plan: return None
         if plan=='tracker-monthly': raise ValueError('Monthly access requires a paid subscription invoice.')
         if session.get('amount_total',0)<=0: raise ValueError('A paid package cannot have a zero total.')
-        return {'source_id':'cs:'+sid,'plan':plan,
+        hold_id=(session.get('metadata') or {}).get('mb_hold_id')
+        if hold_id and (session.get('currency')!='myr' or session.get('amount_total')!=PLANS[plan]['amount']):
+            raise ValueError('Reserved consultation total does not match the approved package.')
+        return {'source_id':'cs:'+sid,'plan':plan,'hold_id':hold_id,
                 'email':(session.get('customer_details') or {}).get('email') or session.get('customer_email'),
                 'customer_id':object_id(session.get('customer')),
                 'payment_intent':object_id(session.get('payment_intent')),'paid_at':event_time}
+
+    def consultation_checkout(self, context):
+        prices=[price for price,plan in self.settings.price_plans.items() if plan==context['plan']]
+        if len(prices)!=1 or self._plan(prices[0])!=context['plan']:
+            raise ValueError('One approved consultation price is required.')
+        if context.get('checkout_id'):
+            session=plain(self.client.v1.checkout.sessions.retrieve(context['checkout_id']))
+        else:
+            session=plain(self.client.v1.checkout.sessions.create({
+                'mode':'payment', 'customer_email':context['email'], 'customer_creation':'always',
+                'line_items':[{'price':prices[0],'quantity':1}],
+                # Start with immediate card payments; delayed methods need separate release policy.
+                'payment_method_types':['card'], 'expires_at':context['expires_at'],
+                'metadata':{'mb_hold_id':context['id']},
+                'success_url':self.settings.public_url+'/consultation?payment=returned',
+                'cancel_url':self.settings.public_url+'/consultation?payment=cancelled',
+                'phone_number_collection':{'enabled':True},
+            },options={'idempotency_key':'mb-consultation-'+context['id']}))
+        self._mode(session)
+        if (session.get('status')!='open' or session.get('mode')!='payment'
+                or (session.get('metadata') or {}).get('mb_hold_id')!=context['id']):
+            raise RuleError('请查看付款状态。 Please check your payment status.',409)
+        return {'id':session['id'],'url':session.get('url'),'expires_at':session.get('expires_at')}
+
+    def consultation_state(self, sid):
+        session=plain(self.client.v1.checkout.sessions.retrieve(sid)); self._mode(session)
+        return {'id':session['id'],'status':session.get('status'),
+                'hold_id':(session.get('metadata') or {}).get('mb_hold_id'),
+                'expires_at':session.get('expires_at')}
 
     def renewal_checkout(self, context):
         prices = [p for p, plan in self.settings.price_plans.items() if plan == 'tracker-monthly']

@@ -19,8 +19,20 @@ def inspect_environment(env):
     for name in REQUIRED:
         if not env.get(name,'').strip(): fail(name,'missing')
     if env.get('MB_ENV')!='production': fail('MB_ENV','must_be_production_for_hosted_service')
-    for name in ('MB_STRIPE_LIVE','MB_RELEASE_REVIEWED','MB_BOOKING_ENABLED','MB_LEGACY_LINK_ENABLED','MB_RENEWAL_ENABLED'):
+    for name in ('MB_STRIPE_LIVE','MB_RELEASE_REVIEWED','MB_BOOKING_ENABLED','MB_LEGACY_LINK_ENABLED','MB_RENEWAL_ENABLED','MB_CONSULTATION_CHECKOUT_ENABLED','MB_INTAKE_ENABLED'):
         if env.get(name,'false') not in ('true','false'): fail(name,'must_be_true_or_false')
+    if env.get('MB_CONSULTATION_CHECKOUT_ENABLED')=='true':
+        if env.get('MB_BOOKING_ENABLED')!='true': fail('MB_BOOKING_ENABLED','required_for_consultation_checkout')
+        if env.get('MB_INTAKE_ENABLED')!='true': fail('MB_INTAKE_ENABLED','required_for_consultation_checkout')
+    if env.get('MB_INTAKE_ENABLED')=='true':
+        try:
+            privacy=urlsplit(env.get('MB_INTAKE_PRIVACY_URL',''))
+            privacy_valid=privacy.scheme=='https' and bool(privacy.hostname) and not privacy.username and not privacy.password
+        except ValueError: privacy_valid=False
+        if not privacy_valid:
+            fail('MB_INTAKE_PRIVACY_URL','reviewed_https_notice_required')
+        if not 1<=len(env.get('MB_INTAKE_CONSENT_VERSION',''))<=80:
+            fail('MB_INTAKE_CONSENT_VERSION','reviewed_consent_version_required')
     live=env.get('MB_STRIPE_LIVE')=='true'
     if live and env.get('MB_RELEASE_REVIEWED')!='true': fail('MB_RELEASE_REVIEWED','live_release_not_reviewed')
     key=env.get('STRIPE_SECRET_KEY','')
