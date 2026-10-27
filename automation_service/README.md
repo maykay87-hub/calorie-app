@@ -1,5 +1,16 @@
 # Member service — staging implementation
 
+## Latest hosted acceptance — 28 October 2026 (MYT)
+
+The full service is now deployed in the isolated sandbox. A real sandbox RM199
+payment, PostgreSQL entitlement, delivered activation email, account activation,
+seven-day access and phone coach portal have been verified. The two outbox
+messages are sent. See [current acceptance and remaining connections](../docs/member-service-acceptance-20261028.md)
+for the repeatable queue/Scheduler setup and private Tracker configuration.
+The setup script has not yet been executed in the owner Cloud session. It is
+preparation, not evidence that automatic mail dispatch is running. The suite
+passes 82 local synthetic tests. No live student release has been performed.
+
 ## Continuation checkpoint 27 October 2026
 
 The separate webhook-only staging receiver has passed an actual Stripe sandbox

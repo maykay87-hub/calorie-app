@@ -105,6 +105,7 @@ def create_app(settings=None,store=None,gateway=None,sender=None,clock=None,job_
         response.set_cookie('mb_session',token,httponly=True,secure=settings.production,samesite='strict',max_age=86400,path='/')
         return response
 
+    @app.get('/api/health')
     @app.get('/healthz')
     def health(): return {'ok':True,'live':settings.live,'booking_enabled':settings.booking_enabled}
     @app.get('/')
@@ -265,3 +266,4 @@ def create_app(settings=None,store=None,gateway=None,sender=None,clock=None,job_
     @app.post('/api/coach/close-slot')
     def coach_close(body:CloseSlot,request:Request): service.coach_authorized(session(request)); service.close_slot(body.slot_id); return {'ok':True}
     return app
+
