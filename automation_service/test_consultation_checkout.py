@@ -223,7 +223,8 @@ def test_stripe_checkout_creation_is_one_time_and_idempotent(flow):
     gateway.consultation_checkout(context)
     assert captured['params']['mode']=='payment'
     assert captured['params']['metadata']=={'mb_hold_id':'hold-test'}
-    assert captured['params']['payment_method_types']==['card']
+    assert captured['params']['allowed_payment_method_types']==['card']
+    assert 'payment_method_types' not in captured['params']
     assert captured['options']['idempotency_key']=='mb-consultation-hold-test'
     assert captured['params']['success_url'].endswith('/consultation?payment=returned')
 
@@ -266,3 +267,4 @@ def test_signed_webhook_confirms_booking_not_browser_return(flow):
         assert client.get('/api/consultation/status').json()['status']=='booked'
         assert client.post('/stripe/webhook',content=raw,headers=headers).status_code==200
         with s.store.read() as c: assert len(rows(c,bookings))==1
+

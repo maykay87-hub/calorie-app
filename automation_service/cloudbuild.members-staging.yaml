@@ -1,0 +1,15 @@
+# Run from the repository root. This builds the full member service image;
+# it intentionally does not deploy or alter the working webhook-only service.
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - --file=Dockerfile.consultation
+      - --tag=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/${_IMAGE}:$BUILD_ID
+      - .
+images:
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/${_IMAGE}:$BUILD_ID
+substitutions:
+  _REGION: asia-southeast1
+  _REPOSITORY: cloud-run-source-deploy
+  _IMAGE: maybloom-member-staging

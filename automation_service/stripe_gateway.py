@@ -102,7 +102,9 @@ class StripeGateway:
                 'mode':'payment', 'customer_email':context['email'], 'customer_creation':'always',
                 'line_items':[{'price':prices[0],'quantity':1}],
                 # Start with immediate card payments; delayed methods need separate release policy.
-                'payment_method_types':['card'], 'expires_at':context['expires_at'],
+                # Current Checkout API filters dashboard-managed methods with this field.
+                # The removed payment_method_types field is rejected by Stripe.
+                'allowed_payment_method_types':['card'], 'expires_at':context['expires_at'],
                 'metadata':{'mb_hold_id':context['id']},
                 'success_url':self.settings.public_url+'/consultation?payment=returned',
                 'cancel_url':self.settings.public_url+'/consultation?payment=cancelled',
@@ -162,3 +164,4 @@ class StripeGateway:
             raise RuleError('付款正在处理或链接已结束，请查看账单。 Check payment status before retrying.',409)
         return {'id':session['id'], 'url':session.get('url'), 'customer_id':cid,
                 'expires_at':session.get('expires_at')}
+

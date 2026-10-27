@@ -1,5 +1,44 @@
 # Member service — staging implementation
 
+## Continuation checkpoint 27 October 2026
+
+The separate webhook-only staging receiver has passed an actual Stripe sandbox
+checkout, signature rejection and replay-to-PostgreSQL checks. That receiver
+only records event identities. It does not run this member-service application.
+The full member service must still be deployed and configured before it can
+activate members, send email or provide consultations.
+
+The additive migration in `migrations/20261027_consultation_preparation.sql`
+installs the hold and private-intake tables without changing existing records.
+It has been applied to the existing isolated staging database. Do not rerun it
+against baseline or student data as a shortcut to deployment.
+
+Checkout creation now uses `allowed_payment_method_types` to restrict the
+dashboard-managed methods to cards. Stripe's current API rejects the removed
+`payment_method_types` creation parameter.
+
+The synthetic HTTP buyer-journey test covers a slot reservation, verified paid
+event, replay, captured activation/booking mail, one-time account activation,
+seven-day access, encrypted preparation, coach authorization, the real Tracker
+bridge client, application restart and expiry without record deletion.
+All 76 member-service tests pass locally. Stripe reads and mail delivery in these
+tests are simulated, and SQLite is used locally; this does not establish hosted
+member-service/PostgreSQL connectivity or actual email inbox receipt.
+
+Build the full service from the repository root using
+`gcloud builds submit --config automation_service/cloudbuild.members-staging.yaml`.
+The config builds and pushes a distinct member-service image without deploying
+it or replacing the already-verified webhook-only image. Its Dockerfile is
+`Dockerfile.consultation`, with the repository root as build context.
+
+Before the full hosted buyer test, configure the existing test Stripe API key,
+four approved test price mappings, durable encryption/admin/bridge secrets,
+authenticated outgoing mail, the exact member-service and private Tracker
+origins, the reviewed privacy notice and the worker invocation. Preserve the
+existing database and webhook signing secrets. Never put secret values in this
+file, GitHub, screenshots or a browser URL. Keep live billing, old-student
+linking and the public production website unchanged until their own release.
+
 This service is separate from Streamlit. It is **not deployed** and live fulfillment is disabled by default. No payment key, production account record, live webhook, SMTP login, database ID or student attachment is included in this repository.
 
 ## Implemented
@@ -152,3 +191,4 @@ queue retries, and hosted recovery remain release requirements. The logical
 rebuild does not validate pg_dump/pg_restore, provider PITR, or existing Sheets
 backups. Google Cloud console still returns Site Unavailable in this browser;
 deployment has not been performed.
+
