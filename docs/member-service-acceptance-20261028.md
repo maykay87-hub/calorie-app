@@ -10,6 +10,13 @@ reads confirm verified_at, one consultation credit, and exactly seven days
 between starts_at and ends_at. The two purchase/activation outbox items are sent.
 The coach also published a future availability slot successfully.
 
+The full-service checkout notification was observed as HTTP 200 with result
+processed in Stripe Event deliveries. A deliberate resend on 28 October at
+00:15:54 MYT returned HTTP 200 with result duplicate. Subsequent PostgreSQL reads
+confirm exactly one event, exactly one grant for that payment and zero pending
+mail. The newly deployed `/api/health` route returns ok=true, live=false and
+booking_enabled=false on the actual hosted service.
+
 This is sandbox fulfillment evidence. It is not a live release, an end-to-end
 hosted booking test, or evidence that Tracker login is connected. A synthetic
 appointment remains visible in the coach portal; it is not a customer booking.
@@ -71,8 +78,6 @@ hosted environment; the original route remains available for existing callers.
 - Verify managed login, saved-record compatibility, account isolation, coach
   feedback and expiry against the private staging Tracker. Do not modify the
   stable student deployment or copy student data for testing.
-- Verify the new full-service Stripe event delivery, replay and exactly one grant
-  (earlier webhook-only receiver checks do not establish this acceptance).
 - Configure and test supported subscription, payment-failure and refund events
   before releasing those flows; the existing endpoint currently only receives
   checkout.session.completed.
