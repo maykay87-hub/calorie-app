@@ -1,0 +1,8 @@
+.git
+.streamlit/secrets.toml
+**/secrets.toml
+**/service_account*.json
+**/*credentials*.json
+**/__pycache__
+.pytest_cache
+*.pyc

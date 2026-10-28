@@ -3,7 +3,6 @@ import pandas as pd
 import gspread
 import logging
 import os
-from oauth2client.service_account import ServiceAccountCredentials
 from datetime import date, datetime
 from zoneinfo import ZoneInfo
 from time import monotonic
@@ -24,6 +23,7 @@ from food_database import build_food_database
 from exchange_foods import EXCHANGE_RECORDS, EXCHANGE_SOURCE
 from tracker_ui import MAY_BLOOM_CSS, calorie_summary, remaining_panel, brand_header, progress_scale, usage_instructions
 from deployment_config import resolve_spreadsheet_id
+from sheet_credentials import spreadsheet_credentials
 from member_access import (config as membership_config, login as member_login,
                            verify as verify_membership, roster as member_roster,
                            link_legacy as link_legacy_member, legacy_login, roster_with_labels,
@@ -61,8 +61,7 @@ def get_sheet_connection(type="main", create=False):
     # change. Logout clears it; a short TTL also picks up updated configuration.
     connection = st.session_state.get("sheet_connection")
     if not connection or connection["id"] != SPREADSHEET_ID or monotonic() - connection["time"] > 300:
-        scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-        creds = ServiceAccountCredentials.from_json_keyfile_dict(dict(st.secrets["service_account"]), scope)
+        creds = spreadsheet_credentials(st.secrets, environment)
         client = gspread.authorize(creds)
         connection = {"id": SPREADSHEET_ID, "time": monotonic(),
                       "spreadsheet": client.open_by_key(SPREADSHEET_ID), "worksheets": {}}

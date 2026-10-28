@@ -2,3 +2,4 @@ streamlit>=1.66,<2
 pandas
 gspread
 oauth2client
+google-auth>=2.40,<3
