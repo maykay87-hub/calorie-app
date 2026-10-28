@@ -89,3 +89,33 @@ hosted environment; the original route remains available for existing callers.
 Historical deployment guides and older dated checkpoints describe earlier
 states. This file records the newer observed hosted evidence and distinguishes
 completed preparation from cloud setup that has not yet run.
+
+## Afternoon connection checkpoint — 28 October 2026
+
+The owner ran connect_jobs.py successfully. It reported Connected and sent=0;
+there was no pending outbox work. A subsequent activation request through the
+actual hosted portal produced a new outbox item that reached sent five seconds
+after creation, without a manual worker request. This validates the event-driven
+runtime queue/worker path. Actual Scheduler execution remains to be inspected.
+
+Streamlit management confirms may-bloom-lab uses development/next and staging.app.py.
+Its Secrets editor is empty. After waking, the app explicitly stops with the
+independent test/production spreadsheet identifier requirement. No settings were
+saved. The stable student app remains on its existing branch.
+
+prepare_tracker.py consolidates the owner-only setup: sandbox preflight, a
+dedicated staging Sheets service account (no project role grants), a reusable
+Secret Manager service-account key, a separate reusable staging coach password,
+and a 0600 local TOML file using the existing member-service bridge secret. It
+requires distinct --test-sheet and --production-sheet arguments; production ID
+is only an isolation guard. It does not share a Sheet, modify Streamlit or print
+private credentials. Run --apply only in the owner's Cloud Shell, download the
+private output and paste it only into may-bloom-lab Secrets. Never upload it to
+chat, GitHub or a shared folder. New credential entry remains an owner step.
+
+Share only the independent test Sheet with the printed service-account address,
+as Editor, before testing managed login and record/coach flows. Do not reuse the
+student service-account key or copy student data. Keep the downloaded private
+file safely and remove the temporary Cloud Shell file after successful setup.
+Five additional standard-library synthetic tests cover isolation, TOML encoding,
+private file permissions, reuse and secret-free command arguments/errors.
