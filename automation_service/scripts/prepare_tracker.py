@@ -24,13 +24,17 @@ class SetupError(Exception):
 def operation_name(args):
     labels = {
         ('run', 'services', 'describe'): 'read sandbox service',
+        ('run', 'deploy'): 'deploy isolated test Tracker',
+        ('builds', 'submit'): 'build isolated test image',
         ('services', 'enable'): 'enable required APIs',
         ('iam', 'service-accounts', 'describe'): 'inspect staging identity',
         ('iam', 'service-accounts', 'create'): 'create staging identity',
         ('iam', 'service-accounts', 'keys'): 'create staging Sheets key',
         ('secrets', 'describe'): 'inspect private secret',
         ('secrets', 'versions', 'access'): 'read private secret',
+        ('secrets', 'versions', 'add'): 'store private configuration version',
         ('secrets', 'create'): 'store private secret',
+        ('secrets', 'add-iam-policy-binding'): 'grant runtime access to its private configuration',
     }
     return next((label for prefix, label in labels.items() if tuple(args[:len(prefix)]) == prefix), 'Cloud operation')
 
@@ -55,7 +59,8 @@ def error_category(stderr):
 def cloud(*args, data=None, missing=False):
     result = subprocess.run(['gcloud', *args, '--quiet'], input=data, capture_output=True, text=True)
     if result.returncode:
-        if missing and 'NOT_FOUND' in result.stderr:
+        if missing and ('NOT_FOUND' in result.stderr or
+                        (args[:3] == ('run', 'services', 'describe') and 'Cannot find service' in result.stderr)):
             return None
         raise SetupError(operation_name(args) + ': ' + error_category(result.stderr))
     return result.stdout.strip()

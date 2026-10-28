@@ -73,6 +73,15 @@ class PreparationTests(unittest.TestCase):
             ('private-provider-message', 'CLOUD_COMMAND_FAILED')]:
             self.assertEqual(tracker.error_category(raw), expected)
 
+    def test_missing_cloud_run_service_is_not_a_permission_failure(self):
+        class Result:
+            returncode = 1
+            stderr = 'ERROR: (gcloud.run.services.describe) Cannot find service [synthetic].'
+        with patch.object(tracker.subprocess, 'run', return_value=Result()):
+            self.assertIsNone(tracker.cloud('run', 'services', 'describe', 'synthetic', missing=True))
+            with self.assertRaises(tracker.SetupError):
+                tracker.cloud('run', 'services', 'describe', 'synthetic')
+
 
 if __name__ == '__main__':
     unittest.main()
