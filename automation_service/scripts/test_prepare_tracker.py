@@ -62,6 +62,17 @@ class PreparationTests(unittest.TestCase):
                 tracker.cloud('example', missing=True)
         self.assertNotIn('SYNTHETIC-PRIVATE', str(error.exception))
 
+    def test_safe_operation_and_error_categories(self):
+        self.assertEqual(tracker.operation_name(('iam', 'service-accounts', 'keys', 'create', 'PRIVATE-PATH')),
+                         'create staging Sheets key')
+        for raw, expected in [
+            ('PERMISSION_DENIED: private-value', 'PERMISSION_DENIED'),
+            ('Please run gcloud auth login with PRIVATE-ACCOUNT', 'AUTHENTICATION_REQUIRED'),
+            ('constraint iam.disableServiceAccountKeyCreation PRIVATE-ACCOUNT', 'KEY_CREATION_BLOCKED_BY_POLICY'),
+            ('unrecognized arguments: PRIVATE-VALUE', 'CLI_ARGUMENT_ERROR'),
+            ('private-provider-message', 'CLOUD_COMMAND_FAILED')]:
+            self.assertEqual(tracker.error_category(raw), expected)
+
 
 if __name__ == '__main__':
     unittest.main()

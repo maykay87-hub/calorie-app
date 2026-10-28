@@ -21,12 +21,43 @@ class SetupError(Exception):
     pass
 
 
+def operation_name(args):
+    labels = {
+        ('run', 'services', 'describe'): 'read sandbox service',
+        ('services', 'enable'): 'enable required APIs',
+        ('iam', 'service-accounts', 'describe'): 'inspect staging identity',
+        ('iam', 'service-accounts', 'create'): 'create staging identity',
+        ('iam', 'service-accounts', 'keys'): 'create staging Sheets key',
+        ('secrets', 'describe'): 'inspect private secret',
+        ('secrets', 'versions', 'access'): 'read private secret',
+        ('secrets', 'create'): 'store private secret',
+    }
+    return next((label for prefix, label in labels.items() if tuple(args[:len(prefix)]) == prefix), 'Cloud operation')
+
+
+def error_category(stderr):
+    text = stderr.upper()
+    if 'DISABLESERVICEACCOUNTKEYCREATION' in text or 'SERVICE_ACCOUNT_KEY_CREATION_DISABLED' in text:
+        return 'KEY_CREATION_BLOCKED_BY_POLICY'
+    if any(s in text for s in ('NO ACTIVE ACCOUNT', 'ACTIVE ACCOUNT SELECTED', 'REFRESHING YOUR CURRENT AUTH',
+                              'NO CREDENTIALS', 'AUTH LOGIN', 'DO NOT CURRENTLY HAVE AN ACTIVE ACCOUNT')):
+        return 'AUTHENTICATION_REQUIRED'
+    if 'UNRECOGNIZED ARGUMENTS' in text:
+        return 'CLI_ARGUMENT_ERROR'
+    for category in ('PERMISSION_DENIED', 'UNAUTHENTICATED', 'NOT_FOUND', 'ALREADY_EXISTS',
+                     'FAILED_PRECONDITION', 'INVALID_ARGUMENT', 'RESOURCE_EXHAUSTED',
+                     'DEADLINE_EXCEEDED', 'UNAVAILABLE'):
+        if category in text:
+            return category
+    return 'CLOUD_COMMAND_FAILED'
+
+
 def cloud(*args, data=None, missing=False):
     result = subprocess.run(['gcloud', *args, '--quiet'], input=data, capture_output=True, text=True)
     if result.returncode:
         if missing and 'NOT_FOUND' in result.stderr:
             return None
-        raise SetupError('Cloud operation failed. Check the active account and resource permissions.')
+        raise SetupError(operation_name(args) + ': ' + error_category(result.stderr))
     return result.stdout.strip()
 
 
@@ -144,6 +175,16 @@ def main():
 if __name__ == '__main__':
     try:
         main()
-    except (SetupError, KeyError, ValueError, OSError):
-        print('Preparation stopped. Check sandbox resources, API permissions and local output path; private values are hidden.', file=sys.stderr)
+    except SetupError as error:
+        # SetupError messages are fixed text plus allow-listed operation/category.
+        print('Preparation stopped: ' + str(error) + '. Private values are hidden.', file=sys.stderr)
+        sys.exit(1)
+    except (KeyError, ValueError, OSError) as error:
+        if isinstance(error, KeyError):
+            category = 'MISSING_CONFIGURATION_FIELD'
+        elif isinstance(error, ValueError):
+            category = 'INVALID_CONFIGURATION_FORMAT'
+        else:
+            category = 'LOCAL_FILE_OR_COMMAND_ERROR'
+        print('Preparation stopped: ' + category + '. Private values are hidden.', file=sys.stderr)
         sys.exit(1)
