@@ -37,3 +37,13 @@ def test_invalid_optional_task_queue_is_reported_without_echoing_value():
     result=inspect_environment(env)
     assert any(p['field']=='MB_TASK_QUEUE' for p in result['problems'])
     assert 'private-diagnostic' not in json.dumps(result)
+
+def test_consultation_checkout_needs_booking_intake_and_reviewed_notice():
+    env=configured();env['MB_CONSULTATION_CHECKOUT_ENABLED']='true'
+    fields={p['field'] for p in inspect_environment(env)['problems']}
+    assert {'MB_BOOKING_ENABLED','MB_INTAKE_ENABLED'}<=fields
+    env.update(MB_BOOKING_ENABLED='true',MB_INTAKE_ENABLED='true',
+               MB_INTAKE_PRIVACY_URL='https://example.invalid/privacy',MB_INTAKE_CONSENT_VERSION='test-v1')
+    assert inspect_environment(env)['configuration_valid']
+    env['MB_INTAKE_PRIVACY_URL']='https://['
+    assert not inspect_environment(env)['configuration_valid']
