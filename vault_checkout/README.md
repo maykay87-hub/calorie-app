@@ -20,6 +20,16 @@ Register this service's `POST /stripe/webhook` as a snapshot event destination f
 
 The buyer needs the Stripe return page in the same tab to download. If they lose the page, May can verify the order in Stripe and assist through the contact link. The service does not send buyer emails.
 
+## Sandbox deployment from Cloud Shell
+
+The Stripe Sandbox Payment Link and its dedicated webhook destination are configured. The service name is `maybloom-vault-test` in `asia-southeast1`. Upload the approved 54-page PDF into Cloud Shell. Run this from the repository checkout:
+
+```bash
+bash vault_checkout/deploy-test.sh "$HOME/MayBloom-Eat-and-Shop-Smart-Bundle-ZH.pdf" plink_1UZs150VkB8Ls7Ikp9x51W0a
+```
+
+On the first run the script prompts for the Stripe Sandbox webhook **Signing secret** for **May Bloom Eat & Shop Smart PDF — isolated sandbox fulfillment**. Enter it only in the hidden Cloud Shell prompt. The script verifies the exact PDF, creates the isolated sandbox resources, checks the storage privacy policy, deploys the service, and verifies that an unpaid request cannot download. The public endpoint only exposes the delivery UI and authenticated fulfillment logic. Use the sandbox checkout for the separate paid test after the script succeeds.
+
 ## Release checks
 
 1. Run `pip install -r requirements.txt httpx` and `python -m unittest -v` in this directory.
