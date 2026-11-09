@@ -68,9 +68,23 @@ if (str(bucket.get("projectNumber")) != sys.argv[1]
     or iam.get("uniformBucketLevelAccess",{}).get("enabled") is not True):
     sys.exit("Bucket ownership or privacy verification failed.")
 ' "$vault_project_number"
+bind_storage_role() {
+  local role="$1" result delay=5
+  while ! result="$(cloud storage buckets add-iam-policy-binding "$vault_bucket" \
+    --member="serviceAccount:${vault_service_account}" --role="$role" 2>&1)"; do
+    if [[ "$result" != *"$vault_service_account does not exist"* || "$delay" -gt 40 ]]; then
+      printf '%s\n' "$result" >&2
+      return 1
+    fi
+    printf 'Waiting %s seconds for the new service account to propagate…\n' "$delay" >&2
+    sleep "$delay"
+    delay=$((delay * 2))
+  done
+  printf '%s\n' "$result"
+}
+
 for vault_role in roles/storage.objectViewer roles/storage.objectCreator; do
-  cloud storage buckets add-iam-policy-binding "$vault_bucket" \
-    --member="serviceAccount:${vault_service_account}" --role="$vault_role"
+  bind_storage_role "$vault_role"
 done
 cloud storage cp --no-clobber "$vault_pdf" "${vault_bucket}/${vault_pdf_object}"
 
