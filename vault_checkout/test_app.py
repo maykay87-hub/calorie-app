@@ -110,6 +110,26 @@ class FulfillmentTest(unittest.TestCase):
         self.assertEqual(response.headers["content-type"], "application/pdf")
         self.assertEqual(response.content, PDF)
 
+    def test_live_link_metadata_requires_matching_key_and_payment_link(self):
+        with patch.dict(app.os.environ, {
+            "STRIPE_MODE": "live", "STRIPE_PAYMENT_LINK_ID": "",
+            "VAULT_PAYMENT_LINK_KEY": "eat-and-shop-smart-live",
+        }):
+            live_session = SESSION.replace("cs_test_", "cs_live_")
+            order = {"session_id": live_session}
+            self.webhook(livemode=True, id=live_session, metadata={"vault_key": "another-product"})
+            self.webhook(livemode=True, id=live_session, payment_link=None,
+                         metadata={"vault_key": "eat-and-shop-smart-live"})
+            self.assertEqual(self.client.post("/download", json=order).status_code, 403)
+            self.assertEqual(self.webhook(livemode=True, id=live_session,
+                                          metadata={"vault_key": "eat-and-shop-smart-live"}).status_code, 200)
+            self.assertEqual(self.client.post("/download", json=order).status_code, 200)
+
+    def test_webhook_is_unavailable_until_signing_secret_is_configured(self):
+        with patch.dict(app.os.environ, {"STRIPE_WEBHOOK_SECRET": ""}):
+            self.assertEqual(self.webhook().status_code, 503)
+            self.assertEqual(self.bucket.new_objects, 0)
+
     def test_delayed_payment_grants_access_after_confirmation(self):
         self.webhook(payment_status="unpaid")
         self.assertEqual(self.client.post("/download", json=self.order).status_code, 403)

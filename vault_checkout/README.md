@@ -7,7 +7,8 @@ This directory runs as a separate Cloud Run service from the consultation applic
 | Setting | Source |
 |---|---|
 | `STRIPE_MODE` | `test` for the Stripe sandbox, `live` for production |
-| `STRIPE_PAYMENT_LINK_ID` | The single Payment Link for this guide in that mode |
+| `STRIPE_PAYMENT_LINK_ID` | The single Payment Link for the sandbox guide |
+| `VAULT_PAYMENT_LINK_KEY` | Live-mode product marker, copied from the dedicated Payment Link metadata to its sessions |
 | `STRIPE_WEBHOOK_SECRET` | Secret Manager reference for this service's Stripe event destination |
 | `VAULT_BUCKET` | A dedicated private bucket in the matching environment with public access prevention enabled |
 | `VAULT_PDF_OBJECT` | Object path for the checked 54-page PDF, e.g. `products/eat-and-shop-smart-v1.pdf` |
@@ -29,6 +30,12 @@ bash vault_checkout/deploy-test.sh "$HOME/MayBloom-Eat-and-Shop-Smart-Bundle-ZH.
 ```
 
 On the first run the script prompts for the Stripe Sandbox webhook **Signing secret** for **May Bloom Eat & Shop Smart PDF — isolated sandbox fulfillment**. Enter it only in the hidden Cloud Shell prompt. The script verifies the exact PDF, creates the isolated sandbox resources, checks the storage privacy policy, deploys the service, and verifies that an unpaid request cannot download. The public endpoint only exposes the delivery UI and authenticated fulfillment logic. Use the sandbox checkout for the separate paid test after the script succeeds.
+
+## Live deployment from Cloud Shell
+
+1. Run `bash vault_checkout/deploy.sh prepare-live "$HOME/MayBloom-Eat-and-Shop-Smart-Bundle-ZH.pdf"`. This prepares the separate private storage and Cloud Run service without enabling paid fulfillment.
+2. Once health and unpaid access checks pass, create the live Stripe webhook for the new service URL. Run `bash vault_checkout/deploy.sh live "$HOME/MayBloom-Eat-and-Shop-Smart-Bundle-ZH.pdf"` and enter that destination's signing secret in the hidden terminal prompt.
+3. Verify webhook configuration before creating the live Payment Link. Set `metadata.vault_key=eat-and-shop-smart-live` on the link. Publish the purchase button only once the live destination and private file are ready.
 
 ## Release checks
 

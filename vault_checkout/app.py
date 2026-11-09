@@ -41,12 +41,22 @@ def order_key(session_id: str, mode: str) -> str | None:
     return f"orders/{mode}/{hashlib.sha256(session_id.encode()).hexdigest()}"
 
 
-def paid_order_key(event: dict, mode: str, payment_link: str) -> str | None:
+def paid_order_key(
+    event: dict, mode: str, payment_link: str = "", payment_link_key: str = ""
+) -> str | None:
     if event.get("type") not in PAID_EVENTS or event.get("livemode") is not (mode == "live"):
         return None
     session = event["data"]["object"]
+    link = session.get("payment_link")
+    if not link:
+        return None
+    if payment_link:
+        matches_product = link == payment_link
+    else:
+        metadata = session.get("metadata") or {}
+        matches_product = bool(payment_link_key and metadata.get("vault_key") == payment_link_key)
     if (
-        session.get("payment_link") != payment_link
+        not matches_product
         or session.get("payment_status") != "paid"
         or session.get("mode") != "payment"
         or session.get("currency") != "myr"
@@ -93,14 +103,19 @@ def health():
 
 @app.post("/stripe/webhook")
 async def stripe_webhook(request: Request, stripe_signature: str = Header(default="")):
+    signing_secret = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
+    payment_link = os.environ.get("STRIPE_PAYMENT_LINK_ID", "")
+    payment_link_key = os.environ.get("VAULT_PAYMENT_LINK_KEY", "")
+    if not signing_secret or not (payment_link or payment_link_key):
+        raise HTTPException(503, "Webhook is not configured")
     try:
         event = stripe.Webhook.construct_event(
-            await request.body(), stripe_signature, os.environ["STRIPE_WEBHOOK_SECRET"]
+            await request.body(), stripe_signature, signing_secret
         ).to_dict()
     except (ValueError, stripe.SignatureVerificationError):
         raise HTTPException(400, "Invalid Stripe signature") from None
 
-    key = paid_order_key(event, configured_mode(), os.environ["STRIPE_PAYMENT_LINK_ID"])
+    key = paid_order_key(event, configured_mode(), payment_link, payment_link_key)
     if key:
         await run_in_threadpool(record_paid_order, key)
     return {"received": True}
